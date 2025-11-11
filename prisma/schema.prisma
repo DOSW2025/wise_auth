@@ -1,0 +1,136 @@
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum RolEnum {
+  estudiante
+  tutor
+  admin
+}
+
+enum EstadoUsuario {
+  activo
+  inactivo
+  suspendido
+  pendiente_activacion
+}
+
+enum TipoToken {
+  activacion
+  recuperacion_password
+  verificacion_2fa
+}
+
+// ============================================
+// MODELO USUARIO
+// ============================================
+
+model Usuario {
+  id                    String         @id @default(uuid())
+  
+  // Información básica
+  email                 String         @unique
+  contraseña              String         @map("password") // Cambié "contraseña" por convención
+  nombre                String
+  apellido              String
+  telefono              String?
+  semestre              Int?
+  
+  // Control de acceso
+  rol                   RolEnum        @default(estudiante)
+  estado                EstadoUsuario  @default(pendiente_activacion)
+  
+  // Verificación de cuenta
+  email_verificado      Boolean        @default(false) @map("email_verificado")
+  fecha_verificacion    DateTime?      @map("fecha_verificacion")
+  
+  // Autenticación de 2 factores (2FA)
+  two_factor_habilitado Boolean        @default(false) @map("two_factor_habilitado")
+  two_factor_secret     String?        @map("two_factor_secret") // Para TOTP (Google Authenticator)
+  
+  // Seguridad
+  intentos_fallidos     Int            @default(0) @map("intentos_fallidos")
+  bloqueado_hasta       DateTime?      @map("bloqueado_hasta")
+  ultimo_login          DateTime?      @map("ultimo_login")
+  ultimo_cambio_password DateTime?     @map("ultimo_cambio_password")
+  
+  // Metadata
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+  
+  // Relaciones
+  tokens                Token[]
+  sesiones              Sesion[]
+
+  @@map("usuarios")
+  @@index([email])
+  @@index([estado])
+}
+
+// ============================================
+// TOKENS (Activación, Recuperación, 2FA)
+// ============================================
+
+model Token {
+  id                    String         @id @default(uuid())
+  
+  usuario_id            String         @map("usuario_id")
+  usuario               Usuario        @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  
+  // Tipo y datos del token
+  tipo                  TipoToken
+  token                 String         @unique
+  codigo                String?        // Código numérico de 6 dígitos para 2FA/recuperación
+  
+  // Control de expiración
+  expira_en             DateTime       @map("expira_en")
+  usado                 Boolean        @default(false)
+  usado_en              DateTime?      @map("usado_en")
+  
+  // Metadata
+  createdAt             DateTime       @default(now()) @map("created_at")
+
+  @@map("tokens")
+  @@index([usuario_id])
+  @@index([token])
+  @@index([tipo])
+  @@index([expira_en])
+}
+
+
+model Sesion {
+  id                    String         @id @default(uuid())
+  
+  usuario_id            String         @map("usuario_id")
+  usuario               Usuario        @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  
+  // Datos de sesión
+  refresh_token         String         @unique @map("refresh_token")
+  ip_address            String?        @map("ip_address")
+  user_agent            String?        @map("user_agent")
+  
+  // Control
+  expira_en             DateTime       @map("expira_en")
+  activa                Boolean        @default(true)
+  
+  // Metadata
+  createdAt             DateTime       @default(now()) @map("created_at")
+  ultimo_uso            DateTime       @default(now()) @map("ultimo_uso")
+
+  @@map("sesiones")
+  @@index([usuario_id])
+  @@index([refresh_token])
+  @@index([expira_en])
+}
