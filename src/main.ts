@@ -9,6 +9,10 @@ async function mainAuth() {
   const logger = new Logger('Main Auth');
   const app = await NestFactory.create(AppModule);
 
+  app.enableCors({
+    origin: true,
+    credentials: true,
+  });
 
   //Esto es para activar los filtros o DTOS en el proyecto
   //sin esto, Nest por defecto no los tomará
