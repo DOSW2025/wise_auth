@@ -6,13 +6,15 @@ import { AuthController } from './auth.controller';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { envs } from 'src/config';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 
 @Module({
   imports: [
     PrismaModule,
-    PassportModule,
+    PassportModule.register({ session: false }),
     JwtModule.register({
       global: true,
       secret: envs.jwtsecret,
@@ -20,7 +22,14 @@ import { RolesGuard } from './guards/roles.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard, RolesGuard],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    GoogleStrategy,
+    JwtAuthGuard,
+    RolesGuard,
+    GoogleAuthGuard,
+  ],
   exports: [JwtStrategy, JwtAuthGuard, RolesGuard, PassportModule],
 })
 export class AuthModule {}
