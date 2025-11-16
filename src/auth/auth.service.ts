@@ -1,137 +1,94 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { loginUsuario } from './dto/login.user';
-import { registroUsuario } from './dto/register.user';
 import { PrismaService } from 'src/prisma/prisma.service';
-import * as bcrypt from 'bcrypt';
-import { Role } from './enums/role.enum';
-
+import { GoogleUserDto } from './dto/google-user.dto';
+import { AuthResponseDto } from './dto/auth-response.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-  ) { }
+  ) {}
 
-  async create(registroDto: registroUsuario) {
-    const usuarioExistente = await this.prisma.usuario.findUnique({
-      where: { email: registroDto.email },
-    });
+  async validateGoogleUser(googleUserDto: GoogleUserDto): Promise<AuthResponseDto> {
+    try {
+      this.logger.log(`Validando usuario de Google: ${googleUserDto.email}`);
 
-    if (usuarioExistente) {
-      throw new ConflictException('El correo ya está registrado');
-    }
-    const contraseñaHasheada = await bcrypt.hash(registroDto.contraseña, 10);
-
-    const nuevoUsuario = await this.prisma.usuario.create({
-      data: {
-        email: registroDto.email,
-        contraseña: contraseñaHasheada,
-        nombre: registroDto.nombre,
-        apellido: registroDto.apellido,
-        semestre: registroDto.semestre,
-        telefono: registroDto.telefono,
-        rol: registroDto.email.endsWith('@mail.escuelaing.edu.co') ? Role.ESTUDIANTE : Role.TUTOR,
-      },
-      select: {
-        id: true,
-        email: true,
-        nombre: true,
-        apellido: true,
-        rol: true,
-        createdAt: true,
-        semestre: true,
-        telefono: true,
-      },
-    });
-
-    //TODO:
-    //debemos enviar un mensaje asincrono al microservico de gestioin de usuarios, para crear el perfil del usuario
-
-    return {
-      mensaje: 'Usuario registrado exitosamente',
-      usuario: nuevoUsuario,
-    };
-  }
-
-  async login(loginUsuario: loginUsuario) {
-    const usuarioExistente = await this.prisma.usuario.findUnique({
-      where: { email: loginUsuario.email },
-    });
-
-    if (!usuarioExistente) {
-      throw new ConflictException('El usuario no fue encontrado.');
-    }
-
-    // Verificar si la cuenta está bloqueada
-    if (usuarioExistente.bloqueado_hasta && usuarioExistente.bloqueado_hasta > new Date()) {
-      const tiempoRestante = Math.ceil((usuarioExistente.bloqueado_hasta.getTime() - Date.now()) / 60000);
-      throw new ConflictException(`Cuenta bloqueada. Intente nuevamente en ${tiempoRestante} minutos.`);
-    }
-
-    const contraseñaValida = await bcrypt.compare(
-      loginUsuario.contraseña,
-      usuarioExistente.contraseña,
-    );
-
-    if (!contraseñaValida) {
-      const nuevosIntentos = usuarioExistente.intentos_fallidos + 1;
-
-      if (nuevosIntentos >= 5) {
-        await this.prisma.usuario.update({
-          where: { id: usuarioExistente.id },
-          data: {
-            intentos_fallidos: nuevosIntentos,
-            bloqueado_hasta: new Date(Date.now() + 30 * 60 * 1000) // 30 minutos
-          },
-        });
-        throw new ConflictException('Cuenta bloqueada por múltiples intentos fallidos. Intente en 30 minutos.');
-      }
-
-      // Incrementar intentos fallidos
-      await this.prisma.usuario.update({
-        where: { id: usuarioExistente.id },
-        data: { intentos_fallidos: nuevosIntentos },
+      let user = await this.prisma.usuario.findFirst({
+        where: {
+          OR: [{ google_id: googleUserDto.googleId }, { email: googleUserDto.email }],
+        },
       });
 
-      const intentosRestantes = 5 - nuevosIntentos;
-      throw new ConflictException(`Credenciales incorrectas. Le quedan ${intentosRestantes} intentos.`);
+      if (user) {
+        if (!user.google_id) {
+          this.logger.log(`Vinculando cuenta existente con Google: ${googleUserDto.email}`);
+          user = await this.prisma.usuario.update({
+            where: { id: user.id },
+            data: {
+              google_id: googleUserDto.googleId,
+              avatar_url: googleUserDto.avatarUrl,
+              email_verificado: true,
+              estado: 'activo',
+              ultimo_login: new Date(),
+            },
+          });
+        } else {
+          // Actualizar último login y avatar
+          this.logger.log(`Usuario existente iniciando sesión: ${googleUserDto.email}`);
+          user = await this.prisma.usuario.update({
+            where: { id: user.id },
+            data: {
+              ultimo_login: new Date(),
+              avatar_url: googleUserDto.avatarUrl,
+            },
+          });
+        }
+      } else {
+        // Crear nuevo usuario
+        this.logger.log(`Creando nuevo usuario desde Google: ${googleUserDto.email}`);
+        user = await this.prisma.usuario.create({
+          data: {
+            email: googleUserDto.email,
+            nombre: googleUserDto.nombre,
+            apellido: googleUserDto.apellido,
+            google_id: googleUserDto.googleId,
+            avatar_url: googleUserDto.avatarUrl,
+            email_verificado: true,
+            estado: 'activo',
+            rol: 'estudiante',
+            ultimo_login: new Date(),
+          },
+        });
+      }
+
+      const payload = {
+        sub: user.id,
+        email: user.email,
+        role: user.rol,
+      };
+
+      const token = this.jwtService.sign(payload);
+
+      this.logger.log(`Login exitoso para usuario: ${user.email}`);
+
+      return {
+        access_token: token,
+        user: {
+          id: user.id,
+          email: user.email,
+          nombre: user.nombre,
+          apellido: user.apellido,
+          rol: user.rol,
+          avatarUrl: user.avatar_url,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Error en validateGoogleUser: ${error.message}`, error.stack);
+      throw new BadRequestException('Error al procesar autenticación con Google');
     }
-
-    await this.prisma.usuario.update({
-      where: { id: usuarioExistente.id },
-      data: {
-        intentos_fallidos: 0,
-        bloqueado_hasta: null, // Importante: limpiar el bloqueo, dejarlo null está bien.
-        ultimo_login: new Date()
-      },
-    });
-
-    // Crear el payload del token, lo que lleva adentro
-    const payload = {
-      sub: usuarioExistente.id,
-      email: usuarioExistente.email,
-      rol: usuarioExistente.rol,
-    };
-
-    // Generar el token JWT
-    const accessToken = await this.jwtService.signAsync(payload);
-
-    return {
-      mensaje: 'Login exitoso',
-      accessToken,
-      usuario: {
-        id: usuarioExistente.id,
-        email: usuarioExistente.email,
-        nombre: usuarioExistente.nombre,
-        apellido: usuarioExistente.apellido,
-        rol: usuarioExistente.rol,
-      },
-      metadata: {
-        issuedAt: Date.now(),
-        expiresIn: this.jwtService.decode(accessToken)['exp'] * 1000,
-      },
-    };
   }
 }
