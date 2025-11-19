@@ -11,6 +11,7 @@ interface EnvVars {
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   GOOGLE_CALLBACK_URL: string;
+  AUTH_SERVICE_BUS_CONNECTION_STRING: string;
 }
 const envsSchema = joi
   .object({
@@ -22,6 +23,7 @@ const envsSchema = joi
     GOOGLE_CLIENT_ID: joi.string().required(),
     GOOGLE_CLIENT_SECRET: joi.string().required(),
     GOOGLE_CALLBACK_URL: joi.string().required(),
+    AUTH_SERVICE_BUS_CONNECTION_STRING: joi.string().required(),
   })
   .unknown(true);
 const result = envsSchema.validate(process.env);
@@ -39,4 +41,5 @@ export const envs = {
   googleClientId: envVars.GOOGLE_CLIENT_ID,
   googleClientSecret: envVars.GOOGLE_CLIENT_SECRET,
   googleCallbackUrl: envVars.GOOGLE_CALLBACK_URL,
+  servicebusconnectionstring: envVars.AUTH_SERVICE_BUS_CONNECTION_STRING,
 };
