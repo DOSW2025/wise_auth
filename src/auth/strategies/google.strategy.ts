@@ -23,12 +23,22 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     done: VerifyCallback,
   ): Promise<void> {
     try {
+      this.logger.log(`Validando perfil de Google: ${profile.id}`);
+
       const { id, name, emails, photos } = profile;
 
-      const email = emails?.[0]?.value;
+      if (!emails || emails.length === 0) {
+        this.logger.error('No se encontraron emails en el perfil de Google');
+        return done(
+          new Error('No se pudo obtener el email de la cuenta de Google'),
+          false,
+        );
+      }
+
+      const email = emails[0].value;
 
       if (!email) {
-        this.logger.warn('No se pudo obtener el email del perfil de Google');
+        this.logger.warn('Email vacío en el perfil de Google');
         return done(
           new Error('No se pudo obtener el email de la cuenta de Google'),
           false,
@@ -44,9 +54,11 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       };
 
       this.logger.log(`Usuario validado con Google: ${email}`);
+      this.logger.log(`Datos del usuario: ${JSON.stringify(user)}`);
+
       done(null, user);
     } catch (error) {
-      this.logger.error(`Error en validación de Google OAuth: ${error.message}`);
+      this.logger.error(`Error en validación de Google OAuth: ${error.message}`, error.stack);
       done(error, false);
     }
   }

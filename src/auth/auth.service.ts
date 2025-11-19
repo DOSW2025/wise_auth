@@ -16,7 +16,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-    
+
   ) {
     const credential = new DefaultAzureCredential();
     let connectionString = envs.servicebusconnectionstring;
@@ -26,6 +26,7 @@ export class AuthService {
   async validateGoogleUser(googleUserDto: GoogleUserDto): Promise<AuthResponseDto> {
     try {
       this.logger.log(`Validando usuario de Google: ${googleUserDto.email}`);
+      this.logger.log(`Google ID: ${googleUserDto.googleId}`);
 
       let user = await this.prisma.usuario.findFirst({
         where: {
@@ -34,6 +35,8 @@ export class AuthService {
       });
 
       if (user) {
+        this.logger.log(`Usuario encontrado en BD: ${user.email}, google_id: ${user.google_id}`);
+
         if (!user.google_id) {
           this.logger.log(`Vinculando cuenta existente con Google: ${googleUserDto.email}`);
           user = await this.prisma.usuario.update({
@@ -46,6 +49,7 @@ export class AuthService {
               ultimo_login: new Date(),
             },
           });
+          this.logger.log(`Cuenta vinculada exitosamente`);
         } else {
           // Actualizar último login y avatar
           this.logger.log(`Usuario existente iniciando sesión: ${googleUserDto.email}`);
@@ -56,6 +60,7 @@ export class AuthService {
               avatar_url: googleUserDto.avatarUrl,
             },
           });
+          this.logger.log(`Último login actualizado`);
         }
       } else {
         this.logger.log(`Creando nuevo usuario desde Google: ${googleUserDto.email}`);
@@ -74,6 +79,8 @@ export class AuthService {
           },
         });
 
+        this.logger.log(`Usuario creado exitosamente con ID: ${user.id}`);
+
         // TODO: mandar informacion a gestion de usuarios para crear perfil completo
         await this.sendNotificacionNuevoUsuario(user.email, `${user.nombre} ${user.apellido}`, user.id);
       }
@@ -84,7 +91,9 @@ export class AuthService {
         role: user.rol,
       };
 
+      this.logger.log(`Generando JWT para usuario: ${user.email}`);
       const token = this.jwtService.sign(payload);
+      this.logger.log(`JWT generado exitosamente`);
 
       this.logger.log(`Login exitoso para usuario: ${user.email}`);
 
@@ -101,6 +110,7 @@ export class AuthService {
       };
     } catch (error) {
       this.logger.error(`Error en validateGoogleUser: ${error.message}`, error.stack);
+      this.logger.error(`Datos recibidos: ${JSON.stringify(googleUserDto)}`);
       throw new BadRequestException('Error al procesar autenticación con Google');
     }
   }
