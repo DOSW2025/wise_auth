@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from './prisma.service';
 
+//Pruebas unitarias de la BD (para comprobar que su conexión y desconexión es correcta); maneja los errores de conexión y desconexión.
+
 describe('PrismaService', () => {
   let service: PrismaService;
 
