@@ -1,7 +1,9 @@
 import * as joi from 'joi';
 
+//Pruebas unitarias para validar que todas las variables de entorno requeridas existan; previene errores en producción.
+
 describe('Environment Configuration', () => {
-  // Define the schema to test (same as in envs.ts)
+
   const envsSchema = joi
     .object({
       PORT: joi.number().required(),
