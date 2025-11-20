@@ -13,30 +13,27 @@ export class GoogleAuthGuard extends AuthGuard('google') {
 
         if (err) {
             this.logger.error(`Error en handleRequest: ${err.message}`, err.stack);
-        }
-
-        if (info) {
-            this.logger.warn(`Info en handleRequest: ${JSON.stringify(info)}`);
-        }
-
-        if (!user) {
-            this.logger.warn('No se recibió usuario en handleRequest');
-        } else {
-            this.logger.log(`Usuario recibido: ${user.email}`);
-        }
-
-        // Si hay un error, lo lanzamos para que sea manejado por el controlador
-        if (err) {
             throw err;
         }
 
-        // Si no hay usuario y no hay error, creamos un error
+        if (info) {
+            this.logger.log(`Info en handleRequest: ${JSON.stringify(info)}`);
+        }
+
+        // Passport puede llamar handleRequest múltiples veces durante el flujo OAuth
+        // Si ya tenemos un usuario en la request de una llamada anterior, usarlo
+        if (!user && request.user) {
+            this.logger.log(`Usuario ya existente en request: ${request.user.email}`);
+            return request.user;
+        }
+
         if (!user) {
+            this.logger.warn('No se recibió usuario en handleRequest y no existe en request');
             const error = new Error('No se pudo autenticar con Google');
-            this.logger.error('No user returned from Google OAuth');
             throw error;
         }
 
+        this.logger.log(`Usuario recibido y validado: ${user.email}`);
         return user;
     }
 }
