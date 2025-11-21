@@ -1,51 +1,80 @@
-
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
+  // Usamos la ubicación por defecto en node_modules/@prisma/client
+  // Antes usábamos output = "../generated/prisma" pero esto causaba problemas
+  // cuando NestJS compila a dist/, ya que las rutas relativas no funcionan
 }
-
 
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-enum RolEnum {
-  estudiante
-  tutor
-  admin
+model Rol {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @unique // estudiante, tutor, admin (los que definimos pero toca meterlos en la BD)
+  descripcion String?
+  activo      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  usuarios    Usuario[]
+
+  @@map("roles")
 }
 
-enum EstadoUsuario {
-  activo
-  inactivo
-  suspendido
+model EstadoUsuario {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @unique // activo, inactivo, suspendido (son los que pensé))
+  descripcion String?
+  activo      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  usuarios    Usuario[]
+
+  @@map("estados_usuario")
 }
 
 
 model Usuario {
-  id                    String         @id @default(uuid())
+  id String @id @default(uuid())
 
-  email                 String         @unique
-  nombre                String
-  apellido              String
-  telefono              String?
-  semestre              Int            @default(1)
+  email    String  @unique
+  nombre   String
+  apellido String
+  telefono String?
+  semestre Int     @default(1)
 
-  google_id             String?        @unique @map("google_id")
-  avatar_url            String?        @map("avatar_url")
+  google_id  String? @unique @map("google_id")
+  avatar_url String? @map("avatar_url")
 
-  rol                   RolEnum        @default(estudiante)
-  estado                EstadoUsuario  @default(activo)
+  rolId     Int @default(1) @map("rol_id")
+  rol       Rol @relation(fields: [rolId], references: [id])
 
-  email_verificado      Boolean        @default(false) @map("email_verificado")
+  estadoId  Int           @default(1) @map("estado_id")
+  estado    EstadoUsuario @relation(fields: [estadoId], references: [id])
 
-  ultimo_login          DateTime?      @map("ultimo_login")
+  ultimo_login   DateTime? @map("ultimo_login")
 
-  createdAt             DateTime       @default(now()) @map("created_at")
-  updatedAt             DateTime       @updatedAt @map("updated_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
 
-  @@map("usuarios")
+  notifications Notification[]
+
   @@index([email])
-  @@index([estado])
+  @@index([estadoId])
+  @@index([rolId])
+  @@map("usuarios")
+}
+
+model Notification {
+  id            Int      @unique @default(autoincrement())
+  userId        String
+  fechaCreacion DateTime @default(now())
+  asunto        String
+  resumen       String
+  visto         Boolean  @default(false)
+  user          Usuario  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([id, userId])
 }
