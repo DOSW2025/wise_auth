@@ -72,7 +72,7 @@ export class AuthController {
       // Verificar si el usuario existe en la request
       if (!req.user) {
         this.logger.error('No se encontró usuario en la request después del guard');
-        const errorUrl = `${envs.frontendurl}/login?error=${encodeURIComponent('No se pudo obtener información del usuario de Google')}`;
+        const errorUrl = `${envs.gatewayUrl}/auth/callback?error=${encodeURIComponent('No se pudo obtener información del usuario de Google')}`;
         res.redirect(HttpStatus.TEMPORARY_REDIRECT, errorUrl);
         return;
       }
@@ -95,13 +95,13 @@ export class AuthController {
 
       // Codificar el usuario para pasarlo por URL
       const userEncoded = encodeURIComponent(JSON.stringify(result.user));
-      const redirectUrl = `${envs.frontendurl}/auth/callback?token=${result.access_token}&user=${userEncoded}`;
+      const redirectUrl = `${envs.gatewayUrl}/auth/callback?token=${result.access_token}&user=${userEncoded}`;
 
-      this.logger.log(`Redirigiendo a frontend: ${redirectUrl}`);
+      this.logger.log(`Redirigiendo a gateway: ${redirectUrl}`);
       res.redirect(HttpStatus.TEMPORARY_REDIRECT, redirectUrl);
     } catch (error) {
       this.logger.error(`Error en callback de Google: ${error.message}`, error.stack);
-      const errorUrl = `${envs.frontendurl}/login?error=${encodeURIComponent('Error al procesar autenticación con Google')}`;
+      const errorUrl = `${envs.gatewayUrl}/auth/callback?error=${encodeURIComponent('Error al procesar autenticación con Google')}`;
       res.redirect(HttpStatus.TEMPORARY_REDIRECT, errorUrl);
     }
   }

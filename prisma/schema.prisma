@@ -1,8 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  // Usamos la ubicación por defecto en node_modules/@prisma/client
-  // Antes usábamos output = "../generated/prisma" pero esto causaba problemas
-  // cuando NestJS compila a dist/, ya que las rutas relativas no funcionan
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
