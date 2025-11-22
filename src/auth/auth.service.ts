@@ -88,7 +88,7 @@ export class AuthService {
       const payload = {
         sub: user.id,
         email: user.email,
-        role: user.rol,
+        rol: user.rol,
       };
 
       this.logger.log(`Generando JWT para usuario: ${user.email}`);
