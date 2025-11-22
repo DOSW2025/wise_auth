@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, RolEnum, EstadoUsuario } from '../../generated/prisma';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -27,15 +27,15 @@ export class UsersService {
         }
 
         if (role) {
-            where.rol = role as RolEnum;
+            where.rol = { nombre: role };
         }
 
         if (status) {
             // Map frontend status to backend status
             // Frontend: 'active', 'suspended'
             // Backend: 'activo', 'suspendido', 'inactivo'
-            if (status === 'active') where.estado = EstadoUsuario.activo;
-            else if (status === 'suspended') where.estado = EstadoUsuario.suspendido;
+            if (status === 'active') where.estado = { nombre: 'activo' };
+            else if (status === 'suspended') where.estado = { nombre: 'suspendido' };
         }
 
         const [users, total] = await Promise.all([
@@ -44,6 +44,7 @@ export class UsersService {
                 skip,
                 take: Number(limit),
                 orderBy: { createdAt: 'desc' },
+                include: { rol: true, estado: true },
             }),
             this.prisma.usuario.count({ where }),
         ]);
@@ -70,7 +71,8 @@ export class UsersService {
 
         const updatedUser = await this.prisma.usuario.update({
             where: { id },
-            data: { rol: role as RolEnum },
+            data: { rol: { connect: { nombre: role } } },
+            include: { rol: true, estado: true },
         });
 
         return this.mapToDto(updatedUser);
@@ -83,7 +85,8 @@ export class UsersService {
         // Note: reason is not stored in DB currently
         const updatedUser = await this.prisma.usuario.update({
             where: { id },
-            data: { estado: EstadoUsuario.suspendido },
+            data: { estado: { connect: { nombre: 'suspendido' } } },
+            include: { rol: true, estado: true },
         });
 
         return this.mapToDto(updatedUser);
@@ -95,7 +98,8 @@ export class UsersService {
 
         const updatedUser = await this.prisma.usuario.update({
             where: { id },
-            data: { estado: EstadoUsuario.activo },
+            data: { estado: { connect: { nombre: 'activo' } } },
+            include: { rol: true, estado: true },
         });
 
         return this.mapToDto(updatedUser);
@@ -106,8 +110,8 @@ export class UsersService {
             id: user.id,
             email: user.email,
             name: `${user.nombre} ${user.apellido}`.trim(),
-            role: user.rol,
-            isActive: user.estado === EstadoUsuario.activo,
+            role: user.rol?.nombre,
+            isActive: user.estado?.nombre === 'activo',
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
             avatar: user.avatar_url,
