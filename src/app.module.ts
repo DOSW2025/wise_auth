@@ -8,4 +8,4 @@ import { GestionUsuariosModule } from './gestion-usuarios/gestion-usuarios.modul
   controllers: [],
   providers: [],
 })
-export class AppModule {}
+export class AppModule { }

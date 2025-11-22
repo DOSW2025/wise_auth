@@ -16,6 +16,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+
   ) {
     const credential = new DefaultAzureCredential();
     let connectionString = envs.servicebusconnectionstring;
@@ -25,6 +26,7 @@ export class AuthService {
   async validateGoogleUser(googleUserDto: GoogleUserDto): Promise<AuthResponseDto> {
     try {
       this.logger.log(`Validando usuario de Google: ${googleUserDto.email}`);
+      this.logger.log(`Google ID: ${googleUserDto.googleId}`);
 
       // Buscamos el usuario por google_id o email, incluyendo las relaciones de rol y estado
       // Esto es necesario porque ahora rol y estado son tablas separadas, no enums
@@ -39,6 +41,8 @@ export class AuthService {
       });
 
       if (user) {
+        this.logger.log(`Usuario encontrado en BD: ${user.email}, google_id: ${user.google_id}`);
+
         if (!user.google_id) {
           // Usuario existe pero no tiene Google vinculado, lo vinculamos
           this.logger.log(`Vinculando cuenta existente con Google: ${googleUserDto.email}`);
@@ -56,6 +60,7 @@ export class AuthService {
               estado: true,
             },
           });
+          this.logger.log(`Cuenta vinculada exitosamente`);
         } else {
           // Usuario ya existe y tiene Google, solo actualizamos último login y avatar
           this.logger.log(`Usuario existente iniciando sesión: ${googleUserDto.email}`);
@@ -70,10 +75,12 @@ export class AuthService {
               estado: true,
             },
           });
+          this.logger.log(`Último login actualizado`);
         }
       } else {
         // Nuevo usuario desde Google, lo creamos con valores por defecto
         this.logger.log(`Creando nuevo usuario desde Google: ${googleUserDto.email}`);
+
         user = await this.prisma.usuario.create({
           data: {
             email: googleUserDto.email,
@@ -107,7 +114,9 @@ export class AuthService {
         rol: user.rol.nombre, // Ahora es el nombre del rol desde la tabla relacionada
       };
 
+      this.logger.log(`Generando JWT para usuario: ${user.email}`);
       const token = this.jwtService.sign(payload);
+      this.logger.log(`JWT generado exitosamente`);
 
       this.logger.log(`Login exitoso para usuario: ${user.email}`);
 
@@ -125,6 +134,7 @@ export class AuthService {
       };
     } catch (error) {
       this.logger.error(`Error en validateGoogleUser: ${error.message}`, error.stack);
+      this.logger.error(`Datos recibidos: ${JSON.stringify(googleUserDto)}`);
       throw new BadRequestException('Error al procesar autenticación con Google');
     }
   }

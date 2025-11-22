@@ -23,6 +23,8 @@
     "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
+    "@azure/identity": "^4.13.0",
+    "@azure/service-bus": "^7.9.5",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/jwt": "^11.0.1",
@@ -30,6 +32,7 @@
     "@nestjs/microservices": "^11.1.8",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/swagger": "^11.2.2",
     "@prisma/client": "^6.19.0",
     "@types/passport-google-oauth20": "^2.0.17",
     "bcrypt": "^6.0.0",
@@ -86,6 +89,12 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/$1"
+    },
+    "setupFiles": [
+      "<rootDir>/../test/setup.ts"
+    ]
   }
 }
