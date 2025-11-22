@@ -36,7 +36,7 @@ export const envs = {
   port: envVars.PORT,
   databaseurl: envVars.DATABASE_URL,
   databasedirect: envVars.DIRECT_URL,
-  jwtsecret: envVars.JWT_SECRET,
+  jwtSecret: envVars.JWT_SECRET,
   jwtexpiration: envVars.JWT_EXPIRATION,
   googleClientId: envVars.GOOGLE_CLIENT_ID,
   googleClientSecret: envVars.GOOGLE_CLIENT_SECRET,

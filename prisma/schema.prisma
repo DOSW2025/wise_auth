@@ -39,11 +39,12 @@ model EstadoUsuario {
 model Usuario {
   id String @id @default(uuid())
 
-  email    String  @unique
-  nombre   String
-  apellido String
-  telefono String?
-  semestre Int     @default(1)
+  email     String  @unique
+  nombre    String
+  apellido  String
+  telefono  String?
+  biografia String?
+  semestre  Int     @default(1)
 
   google_id  String? @unique @map("google_id")
   avatar_url String? @map("avatar_url")

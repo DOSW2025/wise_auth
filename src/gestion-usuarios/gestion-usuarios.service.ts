@@ -1,8 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
-import { ChangeRoleDto } from './dto/change-role.dto';
-import { ChangeStatusDto } from './dto/change-status.dto';
+import { ChangeRoleDto, ChangeStatusDto, UpdatePersonalInfoDto } from './dto';
 
 @Injectable()
 export class GestionUsuariosService {
@@ -79,5 +78,48 @@ export class GestionUsuariosService {
     });
 
     return usuario;
+  }
+
+  async updatePersonalInfo(userId: string, updatePersonalInfoDto: UpdatePersonalInfoDto) {
+    // Verificar que el usuario existe
+    const userExists = await this.prisma.usuario.findUnique({
+      where: { id: userId },
+    });
+
+    if (!userExists) {
+      throw new NotFoundException(`Usuario con id ${userId} no encontrado`);
+    }
+
+    const usuario = await this.prisma.usuario.update({
+      where: { id: userId },
+      data: {
+        ...(updatePersonalInfoDto.telefono !== undefined && { telefono: updatePersonalInfoDto.telefono }),
+        ...(updatePersonalInfoDto.biografia !== undefined && { biografia: updatePersonalInfoDto.biografia }),
+      },
+      include: {
+        rol: { select: { id: true, nombre: true } },
+        estado: { select: { id: true, nombre: true } },
+      },
+    });
+
+    return usuario;
+  }
+
+  async deleteUser(userId: string) {
+    // Verificar que el usuario existe
+    const userExists = await this.prisma.usuario.findUnique({
+      where: { id: userId },
+    });
+
+    if (!userExists) {
+      throw new NotFoundException(`Usuario con id ${userId} no encontrado`);
+    }
+
+    // Eliminar el usuario (las notificaciones se eliminan en cascada gracias a onDelete: Cascade)
+    await this.prisma.usuario.delete({
+      where: { id: userId },
+    });
+
+    return { message: 'Usuario eliminado exitosamente', userId };
   }
 }

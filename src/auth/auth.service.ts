@@ -119,7 +119,7 @@ export class AuthService {
           email: user.email,
           nombre: user.nombre,
           apellido: user.apellido,
-          rol: user.rol.nombre,      // String del rol para el frontend
+          rol: user.rol.nombre,
           avatarUrl: user.avatar_url,
         },
       };
