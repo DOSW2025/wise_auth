@@ -8,8 +8,8 @@
   "scripts": {
     "prebuild": "npx prisma generate",
     "build": "nest build",
-    "postbuild": "npx prisma migrate deploy",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prestart": "npx prisma migrate deploy",
     "start": "node dist/src/main",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
