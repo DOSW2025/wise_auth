@@ -6,22 +6,19 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "prebuild": "npx prisma generate",
     "build": "nest build",
-    "postbuild": "npx prisma migrate deploy",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prestart": "npx prisma migrate deploy",
-    "start": "node dist/src/main",
+    "postinstall": "echo '🔧 [POSTINSTALL] Generating Prisma Client...' && prisma generate && echo '✅ [POSTINSTALL] Prisma Client generated successfully!'",
+    "start": "echo '🔄 [START] Running Prisma migrations...' && prisma migrate deploy && echo '🚀 [START] Starting application...' && node dist/src/main",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/src/main",
+    "start:prod": "echo '🔄 [PROD] Running Prisma migrations...' && prisma migrate deploy && echo '🚀 [PROD] Starting application...' && node dist/src/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
-    "postinstall": "npx prisma generate"
+    "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
