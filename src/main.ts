@@ -34,16 +34,18 @@ async function mainAuth() {
   // Configuración de Swagger para documentación de API
   const config = new DocumentBuilder()
     .setTitle('Wise Auth API')
-    .setDescription('Microservicio de autenticación y autorización con OAuth 2.0 de Google y JWT')
+    .setDescription('Microservicio de autenticación y autorización con OAuth 2.0 de Google y JWT. Incluye gestión de usuarios con roles y estados.')
     .setVersion('1.0')
-    .addTag('auth', 'Endpoints de autenticación')
+    .addTag('auth', 'Endpoints de autenticación con Google OAuth 2.0')
+
+    .addTag('Gestión de Usuarios', 'Endpoints para administración de usuarios (solo administradores)')
     .addBearerAuth(
       {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
         name: 'JWT',
-        description: 'Ingresa tu token JWT',
+        description: 'Ingresa tu token JWT obtenido del login con Google',
         in: 'header',
       },
       'JWT-auth',
@@ -55,6 +57,11 @@ async function mainAuth() {
     customSiteTitle: 'Wise Auth API Docs',
     customfavIcon: 'https://nestjs.com/img/logo-small.svg',
     customCss: '.swagger-ui .topbar { display: none }',
+    swaggerOptions: {
+      persistAuthorization: true,
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
+    },
   });
 
   await app.listen(envs.port);
