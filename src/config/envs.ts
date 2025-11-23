@@ -43,6 +43,6 @@ export const envs = {
   googleClientId: envVars.GOOGLE_CLIENT_ID,
   googleClientSecret: envVars.GOOGLE_CLIENT_SECRET,
   googleCallbackUrl: envVars.GOOGLE_CALLBACK_URL,
-  gatewayUrl: envVars.GATEWAY_URL,
+  gatewayUrl: envVars.GATEWAY_URL.startsWith('http') ? envVars.GATEWAY_URL : `https://${envVars.GATEWAY_URL}`,
   servicebusconnectionstring: envVars.SERVICEBUS_CONNECTION_STRING,
 };
