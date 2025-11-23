@@ -17,7 +17,7 @@ import { GoogleAuthGuard } from './guards/google-auth.guard';
     PassportModule.register({ session: false }),
     JwtModule.register({
       global: true,
-      secret: envs.jwtsecret,
+      secret: envs.jwtSecret,
       signOptions: { expiresIn: envs.jwtexpiration },
     }),
   ],
