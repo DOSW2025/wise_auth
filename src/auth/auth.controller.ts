@@ -94,7 +94,13 @@ export class AuthController {
       this.logger.log(`Autenticación exitosa para: ${req.user.email}`);
 
       const url = new URL(envs.gatewayUrl);
-      const basePath = url.pathname.replace(/\/$/, '');
+      let basePath = url.pathname.replace(/\/$/, '');
+
+      // Ensure the path includes the gateway prefix '/wise'
+      if (!basePath.endsWith('/wise')) {
+        basePath = `${basePath}/wise`;
+      }
+
       url.pathname = `${basePath}/auth/callback`;
       url.searchParams.append('token', result.access_token);
       url.searchParams.append('user', JSON.stringify(result.user));
@@ -107,7 +113,13 @@ export class AuthController {
       this.logger.error(`Error en callback de Google: ${error.message}`, error.stack);
 
       const url = new URL(envs.gatewayUrl);
-      const basePath = url.pathname.replace(/\/$/, '');
+      let basePath = url.pathname.replace(/\/$/, '');
+
+      // Ensure the path includes the gateway prefix '/wise'
+      if (!basePath.endsWith('/wise')) {
+        basePath = `${basePath}/wise`;
+      }
+
       url.pathname = `${basePath}/auth/callback`;
       url.searchParams.append('error', 'Error al procesar autenticación con Google');
 
