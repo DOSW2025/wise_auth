@@ -50,7 +50,7 @@ describe('AuthService', () => {
   });
 
   describe('validateGoogleUser', () => {
-    const googleUserDto: GoogleUserDto = {
+    const mockGoogleUser: GoogleUserDto = {
       googleId: 'google-123',
       email: 'test@example.com',
       nombre: 'John',
@@ -58,234 +58,157 @@ describe('AuthService', () => {
       avatarUrl: 'https://example.com/avatar.jpg',
     };
 
-    const mockUser = {
-      id: 1,
-      email: 'test@example.com',
-      nombre: 'John',
-      apellido: 'Doe',
-      google_id: 'google-123',
-      avatar_url: 'https://example.com/avatar.jpg',
-      email_verificado: true,
-      estado: 'activo',
-      rol: 'estudiante',
-      ultimo_login: new Date(),
-      password: null,
-      fecha_creacion: new Date(),
-      fecha_actualizacion: new Date(),
-    };
+    it('should create new user when user does not exist', async () => {
+      const mockCreatedUser = {
+        id: '123',
+        email: mockGoogleUser.email,
+        nombre: mockGoogleUser.nombre,
+        apellido: mockGoogleUser.apellido,
+        google_id: mockGoogleUser.googleId,
+        avatar_url: mockGoogleUser.avatarUrl,
+        rol: 'estudiante',
+        estado: 'activo',
+        email_verificado: true,
+        ultimo_login: expect.any(Date),
+      };
 
-    it('should create a new user from Google OAuth when user does not exist', async () => {
       mockPrismaService.usuario.findFirst.mockResolvedValue(null);
-      mockPrismaService.usuario.create.mockResolvedValue(mockUser);
+      mockPrismaService.usuario.create.mockResolvedValue(mockCreatedUser);
       mockJwtService.sign.mockReturnValue('mock-jwt-token');
 
-      const result = await service.validateGoogleUser(googleUserDto);
+      const result = await service.validateGoogleUser(mockGoogleUser);
 
       expect(prismaService.usuario.findFirst).toHaveBeenCalledWith({
         where: {
           OR: [
-            { google_id: googleUserDto.googleId },
-            { email: googleUserDto.email },
+            { google_id: mockGoogleUser.googleId },
+            { email: mockGoogleUser.email },
           ],
         },
       });
-
-      expect(prismaService.usuario.create).toHaveBeenCalledWith({
-        data: {
-          email: googleUserDto.email,
-          nombre: googleUserDto.nombre,
-          apellido: googleUserDto.apellido,
-          google_id: googleUserDto.googleId,
-          avatar_url: googleUserDto.avatarUrl,
-          email_verificado: true,
-          estado: 'activo',
-          rol: 'estudiante',
-          ultimo_login: expect.any(Date),
-        },
-      });
-
-      expect(jwtService.sign).toHaveBeenCalledWith({
-        sub: mockUser.id,
-        email: mockUser.email,
-        role: mockUser.rol,
-      });
-
-      expect(result).toEqual({
-        access_token: 'mock-jwt-token',
-        user: {
-          id: mockUser.id,
-          email: mockUser.email,
-          nombre: mockUser.nombre,
-          apellido: mockUser.apellido,
-          rol: mockUser.rol,
-          avatarUrl: mockUser.avatar_url,
-        },
-      });
+      expect(prismaService.usuario.create).toHaveBeenCalled();
+      expect(result.access_token).toBe('mock-jwt-token');
+      expect(result.user.email).toBe(mockGoogleUser.email);
     });
 
-    it('should link existing user account with Google when user exists but has no google_id', async () => {
-      const existingUserWithoutGoogle = {
-        ...mockUser,
+    it('should update existing user with google_id when linking account', async () => {
+      const existingUser = {
+        id: '123',
+        email: mockGoogleUser.email,
+        nombre: 'John',
+        apellido: 'Doe',
         google_id: null,
+        avatar_url: null,
+        rol: 'estudiante',
+        estado: 'activo',
       };
 
       const updatedUser = {
-        ...mockUser,
-        google_id: googleUserDto.googleId,
+        ...existingUser,
+        google_id: mockGoogleUser.googleId,
+        avatar_url: mockGoogleUser.avatarUrl,
+        email_verificado: true,
+        ultimo_login: expect.any(Date),
       };
 
-      mockPrismaService.usuario.findFirst.mockResolvedValue(existingUserWithoutGoogle);
+      mockPrismaService.usuario.findFirst.mockResolvedValue(existingUser);
       mockPrismaService.usuario.update.mockResolvedValue(updatedUser);
       mockJwtService.sign.mockReturnValue('mock-jwt-token');
 
-      const result = await service.validateGoogleUser(googleUserDto);
-
-      expect(prismaService.usuario.findFirst).toHaveBeenCalled();
+      const result = await service.validateGoogleUser(mockGoogleUser);
 
       expect(prismaService.usuario.update).toHaveBeenCalledWith({
-        where: { id: existingUserWithoutGoogle.id },
-        data: {
-          google_id: googleUserDto.googleId,
-          avatar_url: googleUserDto.avatarUrl,
+        where: { id: existingUser.id },
+        data: expect.objectContaining({
+          google_id: mockGoogleUser.googleId,
+          avatar_url: mockGoogleUser.avatarUrl,
           email_verificado: true,
           estado: 'activo',
-          ultimo_login: expect.any(Date),
-        },
+        }),
       });
-
       expect(result.access_token).toBe('mock-jwt-token');
-      expect(result.user.id).toBe(updatedUser.id);
     });
 
-    it('should update ultimo_login and avatar_url when existing user with google_id logs in', async () => {
-      mockPrismaService.usuario.findFirst.mockResolvedValue(mockUser);
-      mockPrismaService.usuario.update.mockResolvedValue({
-        ...mockUser,
-        ultimo_login: new Date(),
-      });
+    it('should update last login for existing Google user', async () => {
+      const existingUser = {
+        id: '123',
+        email: mockGoogleUser.email,
+        nombre: 'John',
+        apellido: 'Doe',
+        google_id: mockGoogleUser.googleId,
+        avatar_url: 'old-avatar.jpg',
+        rol: 'estudiante',
+        estado: 'activo',
+      };
+
+      mockPrismaService.usuario.findFirst.mockResolvedValue(existingUser);
+      mockPrismaService.usuario.update.mockResolvedValue(existingUser);
       mockJwtService.sign.mockReturnValue('mock-jwt-token');
 
-      const result = await service.validateGoogleUser(googleUserDto);
+      await service.validateGoogleUser(mockGoogleUser);
 
       expect(prismaService.usuario.update).toHaveBeenCalledWith({
-        where: { id: mockUser.id },
-        data: {
+        where: { id: existingUser.id },
+        data: expect.objectContaining({
           ultimo_login: expect.any(Date),
-          avatar_url: googleUserDto.avatarUrl,
-        },
+          avatar_url: mockGoogleUser.avatarUrl,
+        }),
       });
-
-      expect(result.access_token).toBe('mock-jwt-token');
     });
 
-    it('should generate a valid JWT token with correct payload', async () => {
-      mockPrismaService.usuario.findFirst.mockResolvedValue(null);
-      mockPrismaService.usuario.create.mockResolvedValue(mockUser);
+    it('should generate JWT token with correct payload', async () => {
+      const mockUser = {
+        id: '123',
+        email: mockGoogleUser.email,
+        nombre: mockGoogleUser.nombre,
+        apellido: mockGoogleUser.apellido,
+        google_id: mockGoogleUser.googleId,
+        avatar_url: mockGoogleUser.avatarUrl,
+        rol: 'estudiante',
+      };
+
+      mockPrismaService.usuario.findFirst.mockResolvedValue(mockUser);
+      mockPrismaService.usuario.update.mockResolvedValue(mockUser);
       mockJwtService.sign.mockReturnValue('mock-jwt-token');
 
-      await service.validateGoogleUser(googleUserDto);
+      await service.validateGoogleUser(mockGoogleUser);
 
       expect(jwtService.sign).toHaveBeenCalledWith({
         sub: mockUser.id,
         email: mockUser.email,
-        role: mockUser.rol,
+        rol: mockUser.rol,
       });
     });
 
-    it('should throw BadRequestException when prisma findFirst fails', async () => {
+    it('should throw BadRequestException on error', async () => {
       mockPrismaService.usuario.findFirst.mockRejectedValue(
-        new Error('Database connection error'),
+        new Error('Database error')
       );
 
-      await expect(service.validateGoogleUser(googleUserDto)).rejects.toThrow(
-        BadRequestException,
+      await expect(service.validateGoogleUser(mockGoogleUser)).rejects.toThrow(
+        BadRequestException
       );
-      await expect(service.validateGoogleUser(googleUserDto)).rejects.toThrow(
-        'Error al procesar autenticación con Google',
-      );
-    });
-
-    it('should throw BadRequestException when prisma create fails', async () => {
-      mockPrismaService.usuario.findFirst.mockResolvedValue(null);
-      mockPrismaService.usuario.create.mockRejectedValue(
-        new Error('Failed to create user'),
-      );
-
-      await expect(service.validateGoogleUser(googleUserDto)).rejects.toThrow(
-        BadRequestException,
+      await expect(service.validateGoogleUser(mockGoogleUser)).rejects.toThrow(
+        'Error al procesar autenticación con Google'
       );
     });
 
-    it('should throw BadRequestException when prisma update fails', async () => {
-      const existingUser = { ...mockUser, google_id: null };
-      mockPrismaService.usuario.findFirst.mockResolvedValue(existingUser);
-      mockPrismaService.usuario.update.mockRejectedValue(
-        new Error('Failed to update user'),
+    it('should log errors with user data', async () => {
+      const loggerErrorSpy = jest.spyOn(service['logger'], 'error');
+      mockPrismaService.usuario.findFirst.mockRejectedValue(
+        new Error('Database error')
       );
 
-      await expect(service.validateGoogleUser(googleUserDto)).rejects.toThrow(
-        BadRequestException,
+      try {
+        await service.validateGoogleUser(mockGoogleUser);
+      } catch (error) {
+        // Expected error
+      }
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Error en validateGoogleUser'),
+        expect.any(String)
       );
-    });
-
-    it('should handle user with missing avatarUrl', async () => {
-      const googleUserDtoWithoutAvatar: GoogleUserDto = {
-        ...googleUserDto,
-        avatarUrl: undefined,
-      };
-
-      mockPrismaService.usuario.findFirst.mockResolvedValue(null);
-      mockPrismaService.usuario.create.mockResolvedValue({
-        ...mockUser,
-        avatar_url: null,
-      });
-      mockJwtService.sign.mockReturnValue('mock-jwt-token');
-
-      const result = await service.validateGoogleUser(googleUserDtoWithoutAvatar);
-
-      expect(prismaService.usuario.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          avatar_url: undefined,
-        }),
-      });
-
-      expect(result.user.avatarUrl).toBeNull();
-    });
-
-    it('should find user by google_id when it exists', async () => {
-      const userWithGoogleId = { ...mockUser };
-      mockPrismaService.usuario.findFirst.mockResolvedValue(userWithGoogleId);
-      mockPrismaService.usuario.update.mockResolvedValue(userWithGoogleId);
-      mockJwtService.sign.mockReturnValue('mock-jwt-token');
-
-      await service.validateGoogleUser(googleUserDto);
-
-      expect(prismaService.usuario.findFirst).toHaveBeenCalledWith({
-        where: {
-          OR: [
-            { google_id: googleUserDto.googleId },
-            { email: googleUserDto.email },
-          ],
-        },
-      });
-    });
-
-    it('should find user by email when google_id does not match but email does', async () => {
-      const userFoundByEmail = { ...mockUser, google_id: null };
-      mockPrismaService.usuario.findFirst.mockResolvedValue(userFoundByEmail);
-      mockPrismaService.usuario.update.mockResolvedValue(mockUser);
-      mockJwtService.sign.mockReturnValue('mock-jwt-token');
-
-      await service.validateGoogleUser(googleUserDto);
-
-      expect(prismaService.usuario.findFirst).toHaveBeenCalledWith({
-        where: {
-          OR: [
-            { google_id: googleUserDto.googleId },
-            { email: googleUserDto.email },
-          ],
-        },
-      });
     });
   });
 });

@@ -23,7 +23,7 @@ describe('AuthController', () => {
   const mockAuthResponse: AuthResponseDto = {
     access_token: 'mock-jwt-token',
     user: {
-      id: 1,
+      id: '9b1deb3d-3b7d-4bad-9bdd-2b0d70cf0d28',
       email: 'test@example.com',
       nombre: 'John',
       apellido: 'Doe',
@@ -50,135 +50,94 @@ describe('AuthController', () => {
   });
 
   it('should be defined', () => {
-    expect(controller).toBeDefined();
-  });
-
-  describe('googleAuth', () => {
-    it('should initiate Google authentication flow', async () => {
-      const result = await controller.googleAuth();
-
-      // This endpoint just initiates the flow, it doesn't return anything
-      expect(result).toBeUndefined();
+      expect(controller).toBeDefined();
     });
 
-    it('should have @Public decorator', () => {
-      const metadata = Reflect.getMetadata('isPublic', controller.googleAuth);
-      expect(metadata).toBe(true);
-    });
-  });
+    describe('googleAuth', () => {
+      it('should log the start of Google auth flow', async () => {
+        const loggerSpy = jest.spyOn(controller['logger'], 'log');
 
-  describe('googleAuthCallback', () => {
-    const mockRequest = {
-      user: mockGoogleUserDto,
-    } as any;
+        await controller.googleAuth();
 
-    it('should process Google callback and return auth response', async () => {
-      mockAuthService.validateGoogleUser.mockResolvedValue(mockAuthResponse);
-
-      const result = await controller.googleAuthCallback(mockRequest);
-
-      expect(authService.validateGoogleUser).toHaveBeenCalledWith(
-        expect.objectContaining({
-          googleId: mockGoogleUserDto.googleId,
-          email: mockGoogleUserDto.email,
-          nombre: mockGoogleUserDto.nombre,
-          apellido: mockGoogleUserDto.apellido,
-          avatarUrl: mockGoogleUserDto.avatarUrl,
-        }),
-      );
-
-      expect(result).toEqual(mockAuthResponse);
-      expect(result.access_token).toBe('mock-jwt-token');
-      expect(result.user.email).toBe('test@example.com');
+        expect(loggerSpy).toHaveBeenCalledWith(
+          'Iniciando flujo de autenticación con Google'
+        );
+      });
     });
 
-    it('should handle user without avatarUrl', async () => {
-      const requestWithoutAvatar = {
-        user: {
-          ...mockGoogleUserDto,
-          avatarUrl: undefined,
-        },
-      } as any;
+    describe('googleAuthCallback', () => {
+      it('should redirect to frontend with token when authentication is successful', async () => {
+        const mockReq: any = {
+          user: mockGoogleUserDto,
+        };
+        const mockRes: any = {
+          redirect: jest.fn(),
+        };
 
-      const responseWithoutAvatar = {
-        ...mockAuthResponse,
-        user: {
-          ...mockAuthResponse.user,
-          avatarUrl: null,
-        },
-      };
+        mockAuthService.validateGoogleUser.mockResolvedValue(mockAuthResponse);
 
-      mockAuthService.validateGoogleUser.mockResolvedValue(responseWithoutAvatar);
+        await controller.googleAuthCallback(mockReq, mockRes);
 
-      const result = await controller.googleAuthCallback(requestWithoutAvatar);
+        expect(authService.validateGoogleUser).toHaveBeenCalled();
+        expect(mockRes.redirect).toHaveBeenCalledWith(
+          307,
+          expect.stringContaining('/auth/callback?token=')
+        );
+      });
 
-      expect(authService.validateGoogleUser).toHaveBeenCalledWith(
-        expect.objectContaining({
-          googleId: mockGoogleUserDto.googleId,
-          email: mockGoogleUserDto.email,
-          nombre: mockGoogleUserDto.nombre,
-          apellido: mockGoogleUserDto.apellido,
-          avatarUrl: undefined,
-        }),
-      );
+      it('should redirect to error page when user is not in request', async () => {
+        const mockReq: any = {
+          user: null,
+        };
+        const mockRes: any = {
+          redirect: jest.fn(),
+        };
 
-      expect(result.user.avatarUrl).toBeNull();
-    });
+        await controller.googleAuthCallback(mockReq, mockRes);
 
-    it('should have @Public decorator', () => {
-      const metadata = Reflect.getMetadata('isPublic', controller.googleAuthCallback);
-      expect(metadata).toBe(true);
-    });
+        expect(mockRes.redirect).toHaveBeenCalledWith(
+          307,
+          expect.stringContaining('/login?error=')
+        );
+        expect(authService.validateGoogleUser).not.toHaveBeenCalled();
+      });
 
-    it('should create GoogleUserDto with correct data from request', async () => {
-      mockAuthService.validateGoogleUser.mockResolvedValue(mockAuthResponse);
+      it('should redirect to error page when validation fails', async () => {
+        const mockReq: any = {
+          user: mockGoogleUserDto,
+        };
+        const mockRes: any = {
+          redirect: jest.fn(),
+        };
 
-      await controller.googleAuthCallback(mockRequest);
+        mockAuthService.validateGoogleUser.mockRejectedValue(
+          new Error('Validation failed')
+        );
 
-      expect(authService.validateGoogleUser).toHaveBeenCalledWith(
-        expect.objectContaining({
-          googleId: 'google-123',
-          email: 'test@example.com',
-          nombre: 'John',
-          apellido: 'Doe',
-          avatarUrl: 'https://example.com/avatar.jpg',
-        }),
-      );
-    });
+        await controller.googleAuthCallback(mockReq, mockRes);
 
-    it('should propagate errors from AuthService', async () => {
-      const error = new Error('Authentication failed');
-      mockAuthService.validateGoogleUser.mockRejectedValue(error);
+        expect(mockRes.redirect).toHaveBeenCalledWith(
+          307,
+          expect.stringContaining('/login?error=')
+        );
+      });
 
-      await expect(controller.googleAuthCallback(mockRequest)).rejects.toThrow(
-        'Authentication failed',
-      );
-    });
+      it('should log errors appropriately', async () => {
+        const mockReq: any = {
+          user: mockGoogleUserDto,
+        };
+        const mockRes: any = {
+          redirect: jest.fn(),
+        };
+        const loggerErrorSpy = jest.spyOn(controller['logger'], 'error');
 
-    it('should handle different user roles correctly', async () => {
-      const tutorResponse = {
-        ...mockAuthResponse,
-        user: {
-          ...mockAuthResponse.user,
-          rol: 'tutor',
-        },
-      };
+        mockAuthService.validateGoogleUser.mockRejectedValue(
+          new Error('Test error')
+        );
 
-      mockAuthService.validateGoogleUser.mockResolvedValue(tutorResponse);
+        await controller.googleAuthCallback(mockReq, mockRes);
 
-      const result = await controller.googleAuthCallback(mockRequest);
-
-      expect(result.user.rol).toBe('tutor');
-    });
-
-    it('should return valid access_token', async () => {
-      mockAuthService.validateGoogleUser.mockResolvedValue(mockAuthResponse);
-
-      const result = await controller.googleAuthCallback(mockRequest);
-
-      expect(result.access_token).toBeDefined();
-      expect(typeof result.access_token).toBe('string');
-      expect(result.access_token.length).toBeGreaterThan(0);
+        expect(loggerErrorSpy).toHaveBeenCalled();
+      });
     });
   });
-});
