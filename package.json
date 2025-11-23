@@ -24,6 +24,9 @@
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
   },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "dependencies": {
     "@azure/identity": "^4.13.0",
     "@azure/service-bus": "^7.9.5",
