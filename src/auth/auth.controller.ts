@@ -93,16 +93,37 @@ export class AuthController {
 
       this.logger.log(`Autenticación exitosa para: ${req.user.email}`);
 
-      // Codificar el usuario para pasarlo por URL
-      const userEncoded = encodeURIComponent(JSON.stringify(result.user));
-      const redirectUrl = `${envs.gatewayUrl}/auth/callback?token=${result.access_token}&user=${userEncoded}`;
+      const url = new URL(envs.gatewayUrl);
+      let basePath = url.pathname.replace(/\/$/, '');
+
+      // Ensure the path includes the gateway prefix '/wise'
+      if (!basePath.endsWith('/wise')) {
+        basePath = `${basePath}/wise`;
+      }
+
+      url.pathname = `${basePath}/auth/callback`;
+      url.searchParams.append('token', result.access_token);
+      url.searchParams.append('user', JSON.stringify(result.user));
+
+      const redirectUrl = url.toString();
 
       this.logger.log(`Redirigiendo a gateway: ${redirectUrl}`);
       res.redirect(HttpStatus.TEMPORARY_REDIRECT, redirectUrl);
     } catch (error) {
       this.logger.error(`Error en callback de Google: ${error.message}`, error.stack);
-      const errorUrl = `${envs.gatewayUrl}/auth/callback?error=${encodeURIComponent('Error al procesar autenticación con Google')}`;
-      res.redirect(HttpStatus.TEMPORARY_REDIRECT, errorUrl);
+
+      const url = new URL(envs.gatewayUrl);
+      let basePath = url.pathname.replace(/\/$/, '');
+
+      // Ensure the path includes the gateway prefix '/wise'
+      if (!basePath.endsWith('/wise')) {
+        basePath = `${basePath}/wise`;
+      }
+
+      url.pathname = `${basePath}/auth/callback`;
+      url.searchParams.append('error', 'Error al procesar autenticación con Google');
+
+      res.redirect(HttpStatus.TEMPORARY_REDIRECT, url.toString());
     }
   }
 }
