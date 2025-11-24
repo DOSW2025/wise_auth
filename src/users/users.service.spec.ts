@@ -16,6 +16,25 @@ describe('UsersService', () => {
     },
   };
 
+  const makeUser = (overrides: Partial<Record<string, any>> = {}) => ({
+    id: overrides.id ?? '123',
+    email: overrides.email ?? 'test@example.com',
+    nombre: overrides.nombre ?? 'Test',
+    apellido: overrides.apellido ?? 'User',
+    rol: overrides.rol ?? 'estudiante',
+    estado: overrides.estado ?? 'activo',
+    createdAt: overrides.createdAt ?? new Date(),
+    updatedAt: overrides.updatedAt ?? new Date(),
+    avatar_url: overrides.avatar_url ?? null,
+    telefono: overrides.telefono ?? null,
+    ...overrides,
+  });
+
+  const setFindManyCount = (users: any[], count: number) => {
+    mockPrismaService.usuario.findMany.mockResolvedValue(users);
+    mockPrismaService.usuario.count.mockResolvedValue(count);
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -40,22 +59,10 @@ describe('UsersService', () => {
   describe('findAll', () => {
     it('should return paginated users with default values', async () => {
       const mockUsers = [
-        {
-          id: '1',
-          email: 'user1@example.com',
-          nombre: 'User',
-          apellido: 'One',
-          rol: 'estudiante',
-          estado: 'activo',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          avatar_url: null,
-          telefono: null,
-        },
+        makeUser({ id: '1', email: 'user1@example.com', nombre: 'User', apellido: 'One' }),
       ];
 
-      mockPrismaService.usuario.findMany.mockResolvedValue(mockUsers);
-      mockPrismaService.usuario.count.mockResolvedValue(1);
+      setFindManyCount(mockUsers, 1);
 
       const result = await service.findAll({});
 
@@ -67,8 +74,7 @@ describe('UsersService', () => {
     });
 
     it('should handle search parameter', async () => {
-      mockPrismaService.usuario.findMany.mockResolvedValue([]);
-      mockPrismaService.usuario.count.mockResolvedValue(0);
+      setFindManyCount([], 0);
 
       await service.findAll({ search: 'john' });
 
@@ -86,8 +92,7 @@ describe('UsersService', () => {
     });
 
     it('should filter by role', async () => {
-      mockPrismaService.usuario.findMany.mockResolvedValue([]);
-      mockPrismaService.usuario.count.mockResolvedValue(0);
+      setFindManyCount([], 0);
 
       await service.findAll({ role: 'admin' });
 
@@ -101,8 +106,7 @@ describe('UsersService', () => {
     });
 
     it('should filter by status active', async () => {
-      mockPrismaService.usuario.findMany.mockResolvedValue([]);
-      mockPrismaService.usuario.count.mockResolvedValue(0);
+      setFindManyCount([], 0);
 
       await service.findAll({ status: 'active' });
 
@@ -116,8 +120,7 @@ describe('UsersService', () => {
     });
 
     it('should filter by status suspended', async () => {
-      mockPrismaService.usuario.findMany.mockResolvedValue([]);
-      mockPrismaService.usuario.count.mockResolvedValue(0);
+      setFindManyCount([], 0);
 
       await service.findAll({ status: 'suspended' });
 
@@ -131,8 +134,7 @@ describe('UsersService', () => {
     });
 
     it('should calculate pagination correctly', async () => {
-      mockPrismaService.usuario.findMany.mockResolvedValue([]);
-      mockPrismaService.usuario.count.mockResolvedValue(25);
+      setFindManyCount([], 25);
 
       const result = await service.findAll({ page: 2, limit: 10 });
 
@@ -144,8 +146,7 @@ describe('UsersService', () => {
     });
 
     it('should calculate skip correctly for page 2', async () => {
-      mockPrismaService.usuario.findMany.mockResolvedValue([]);
-      mockPrismaService.usuario.count.mockResolvedValue(0);
+      setFindManyCount([], 0);
 
       await service.findAll({ page: 2, limit: 10 });
 
@@ -162,18 +163,7 @@ describe('UsersService', () => {
     it('should update user role successfully', async () => {
       const userId = '123';
       const role = 'admin';
-      const mockUser = {
-        id: userId,
-        email: 'test@example.com',
-        nombre: 'Test',
-        apellido: 'User',
-        rol: 'admin',
-        estado: 'activo',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        avatar_url: null,
-        telefono: null,
-      };
+      const mockUser = makeUser({ id: userId, rol: 'admin', estado: 'activo' });
 
       mockPrismaService.usuario.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.usuario.update.mockResolvedValue(mockUser);
@@ -203,18 +193,7 @@ describe('UsersService', () => {
   describe('suspend', () => {
     it('should suspend user successfully', async () => {
       const userId = '123';
-      const mockUser = {
-        id: userId,
-        email: 'test@example.com',
-        nombre: 'Test',
-        apellido: 'User',
-        rol: 'estudiante',
-        estado: 'suspendido',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        avatar_url: null,
-        telefono: null,
-      };
+      const mockUser = makeUser({ id: userId, estado: 'suspendido', rol: 'estudiante' });
 
       mockPrismaService.usuario.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.usuario.update.mockResolvedValue(mockUser);
@@ -238,18 +217,7 @@ describe('UsersService', () => {
   describe('activate', () => {
     it('should activate user successfully', async () => {
       const userId = '123';
-      const mockUser = {
-        id: userId,
-        email: 'test@example.com',
-        nombre: 'Test',
-        apellido: 'User',
-        rol: 'estudiante',
-        estado: 'activo',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        avatar_url: null,
-        telefono: null,
-      };
+      const mockUser = makeUser({ id: userId, estado: 'activo', rol: 'estudiante' });
 
       mockPrismaService.usuario.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.usuario.update.mockResolvedValue(mockUser);
@@ -272,18 +240,7 @@ describe('UsersService', () => {
 
   describe('mapToDto', () => {
     it('should map user to DTO correctly', () => {
-      const mockUser = {
-        id: '123',
-        email: 'test@example.com',
-        nombre: 'John',
-        apellido: 'Doe',
-        rol: 'estudiante',
-        estado: 'activo',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        avatar_url: 'https://example.com/avatar.jpg',
-        telefono: '+123456789',
-      };
+      const mockUser = makeUser({ id: '123', nombre: 'John', apellido: 'Doe', avatar_url: 'https://example.com/avatar.jpg', telefono: '+123456789' });
 
       const dto = service['mapToDto'](mockUser);
 
@@ -301,18 +258,7 @@ describe('UsersService', () => {
     });
 
     it('should handle inactive user', () => {
-      const mockUser = {
-        id: '123',
-        email: 'test@example.com',
-        nombre: 'John',
-        apellido: 'Doe',
-        rol: 'estudiante',
-        estado: 'suspendido',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        avatar_url: null,
-        telefono: null,
-      };
+      const mockUser = makeUser({ id: '123', nombre: 'John', apellido: 'Doe', estado: 'suspendido' });
 
       const dto = service['mapToDto'](mockUser);
 
