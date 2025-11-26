@@ -1,19 +1,36 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PaginationDto } from '../common/dto/pagination.dto';
-import { ChangeRoleDto, ChangeStatusDto, UpdatePersonalInfoDto } from './dto';
+import { ChangeRoleDto, ChangeStatusDto, UpdatePersonalInfoDto, FilterUsersDto } from './dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class GestionUsuariosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAllPaginated(paginationDto: PaginationDto) {
-    const { page, limit } = paginationDto;
-    // skip calcula cuántos registros omitir según la página actual (-1 porque las páginas empiezan en 1, no en 0) =) si lo ven lo pueden copiar tal cual
+  async findAllWithFilters(filterUsersDto: FilterUsersDto) {
+    const { page, limit, search, rolId, estadoId } = filterUsersDto;
     const skip = (page - 1) * limit;
+
+    // Construir el objeto where dinámicamente basado en los filtros
+    const where: Prisma.UsuarioWhereInput = {};
+
+    if (search && search.trim() !== '') {
+      where.OR = [
+        { nombre: { contains: search.trim(), mode: 'insensitive' } },
+        { apellido: { contains: search.trim(), mode: 'insensitive' } },
+        { email: { contains: search.trim(), mode: 'insensitive' } },
+      ];
+    }
+    if (rolId) {
+      where.rolId = rolId;
+    }
+    if (estadoId) {
+      where.estadoId = estadoId;
+    }
 
     const [usuarios, total] = await Promise.all([
       this.prisma.usuario.findMany({
+        where,
         skip,
         take: limit,
         include: {
@@ -22,8 +39,21 @@ export class GestionUsuariosService {
         },
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.usuario.count(),
+      this.prisma.usuario.count({ where }),
     ]);
+
+    if (usuarios.length === 0) {
+      return {
+        data: [],
+        message: 'Sin resultado encontrado',
+        meta: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        },
+      };
+    }
 
     return {
       data: usuarios,
