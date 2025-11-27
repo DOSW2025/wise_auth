@@ -9,9 +9,13 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// ============================================================================
+// MODELOS DE GESTIÓN DE USUARIOS (Base existente)
+// ============================================================================
+
 model Rol {
   id          Int       @id @default(autoincrement())
-  nombre      String    @unique // estudiante, tutor, admin (los que definimos pero toca meterlos en la BD)
+  nombre      String    @unique // estudiante, tutor, profesor, admin
   descripcion String?
   activo      Boolean   @default(true)
   createdAt   DateTime  @default(now()) @map("created_at")
@@ -23,7 +27,7 @@ model Rol {
 
 model EstadoUsuario {
   id          Int       @id @default(autoincrement())
-  nombre      String    @unique // activo, inactivo, suspendido (son los que pensé))
+  nombre      String    @unique // activo, inactivo, suspendido
   descripcion String?
   activo      Boolean   @default(true)
   createdAt   DateTime  @default(now()) @map("created_at")
@@ -33,10 +37,10 @@ model EstadoUsuario {
   @@map("estados_usuario")
 }
 
-
 model Usuario {
   id String @id @default(uuid())
 
+  // Campos básicos de identificación
   email     String  @unique
   nombre    String
   apellido  String
@@ -44,20 +48,35 @@ model Usuario {
   biografia String?
   semestre  Int     @default(1)
 
+  // Autenticación OAuth
   google_id  String? @unique @map("google_id")
   avatar_url String? @map("avatar_url")
 
-  rolId     Int @default(1) @map("rol_id")
-  rol       Rol @relation(fields: [rolId], references: [id])
+  // Relaciones con tablas de gestión
+  rolId     Int           @default(1) @map("rol_id")
+  rol       Rol           @relation(fields: [rolId], references: [id])
 
   estadoId  Int           @default(1) @map("estado_id")
   estado    EstadoUsuario @relation(fields: [estadoId], references: [id])
 
-  ultimo_login   DateTime? @map("ultimo_login")
+  ultimo_login DateTime? @map("ultimo_login")
 
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
+  // Campos específicos de Tutorías
+  // Disponibilidad del usuario en formato JSON
+  // Estructura: { monday: [{start, end, modalidad}], tuesday: [], ... }
+  disponibilidad Json?
 
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relaciones con sistema de tutorías
+  tutorProfile      PerfilTutor?    // Perfil como tutor (opcional)
+  sessionsAsTutor   SesionTutoria[] @relation("tutorSessions")
+  sessionsAsStudent SesionTutoria[] @relation("studentSessions")
+  ratingsGiven      Rating[]        // Calificaciones dadas como estudiante
+
+  // Relaciones con sistema de notificaciones
   notifications Notification[]
 
   @@index([email])
@@ -76,4 +95,130 @@ model Notification {
   user          Usuario  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([id, userId])
+  @@map("notifications")
+}
+
+// ============================================================================
+// MODELOS DE TUTORÍAS
+// ============================================================================
+
+enum EstadoSesion {
+  PENDIENTE
+  CONFIRMADA
+  CANCELADA
+  COMPLETADA
+  RECHAZADA
+}
+
+enum Modalidad {
+  VIRTUAL
+  PRESENCIAL
+}
+
+model PerfilTutor {
+  usuarioId String @id @map("id_tutor")
+  bio       String?
+
+  // Reputación del tutor basada en ratings (0-5)
+  ratings   Rating[] @relation("TutorRatings")
+  reputacion Float   @default(0)
+
+  // Materias que enseña
+  tutorMaterias TutorMateria[]
+
+  // Relación con usuario unificado
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("tutor_profile")
+}
+
+model Materia {
+  id        String      @id @default(uuid())
+  codigo    String      @unique // Identificador de negocio (ej: DOSW, DOPO)
+  nombre    String
+
+  // relación many-to-many con tutores
+  tutorMaterias TutorMateria[]
+
+  // temas asociados
+  temas Tema[]
+
+  // sesiones de tutoría
+  sesiones SesionTutoria[]
+
+  @@index([codigo])
+  @@map("materia")
+}
+
+model Tema {
+  id         String      @id @default(uuid())
+  materiaId  String
+  nombreTema String
+
+  // relación con materia
+  materia    Materia  @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+
+  @@index([materiaId])
+  @@map("tema")
+}
+
+model TutorMateria {
+  id         Int     @id @default(autoincrement())
+  tutorId    String
+  materiaId  String
+
+  // relacion muchos a muchos entre tutores y materias
+  tutor      PerfilTutor @relation(fields: [tutorId], references: [usuarioId], onDelete: Cascade)
+  materia    Materia      @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+
+  @@unique([tutorId, materiaId])
+  @@map("tutor_materia")
+}
+
+
+
+model SesionTutoria {
+  id            String       @id @default(uuid()) @map("id_tutoria")
+  tutorId       String
+  studentId     String
+  materiaId     String
+  codigoMateria String
+  scheduledAt   DateTime     // Fecha completa en que está programada la tutoría
+  day           String       // Día de la semana (monday, tuesday, etc.)
+  startTime     String       // Hora de inicio formato "HH:mm" (ej: "08:00")
+  endTime       String       // Hora de fin formato "HH:mm" (ej: "10:00")
+  mode          Modalidad    // Enum: VIRTUAL o PRESENCIAL
+  status        EstadoSesion @default(PENDIENTE) // Enum: PENDIENTE, CONFIRMADA, COMPLETADA, CANCELADA
+  linkConexion  String?      // Requerido solo si mode = VIRTUAL
+  lugar         String?      // Requerido solo si mode = PRESENCIAL
+  comentarios   String?      // Comentarios opcionales del estudiante al solicitar la sesion
+  createdAt     DateTime     @default(now())
+
+  // Relaciones
+  tutor         Usuario      @relation("tutorSessions", fields: [tutorId], references: [id])
+  student       Usuario      @relation("studentSessions", fields: [studentId], references: [id])
+  materia       Materia      @relation(fields: [materiaId], references: [id])
+  rating        Rating?  
+  
+  @@index([tutorId, scheduledAt])
+  @@index([materiaId])
+  @@index([codigoMateria])
+  @@index([status])
+  @@map("tutoria")
+}
+
+model Rating {
+  id         Int      @id @default(autoincrement())
+  sessionId  String   @unique
+  tutorId    String   // tutor calificado
+  raterId    String   // quien califica (estudiante)
+  score      Int      // 1..5
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  session    SesionTutoria  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  tutor      PerfilTutor    @relation("TutorRatings", fields: [tutorId], references: [usuarioId])
+  rater      Usuario        @relation(fields: [raterId], references: [id])
+
+  @@map("rating")
 }
