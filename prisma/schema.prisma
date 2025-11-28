@@ -115,7 +115,7 @@ model Calificaciones {
   calificacion Int
   comentario   String?
   createdAt    DateTime   @default(now())
-  materiales   materiales @relation(fields: [idMaterial], references: [id], onDelete: Cascade)
+  materiales   Materiales @relation(fields: [idMaterial], references: [id], onDelete: Cascade)
 }
 
 model EstadoUsuario {
@@ -133,7 +133,7 @@ model EstadoUsuario {
 model MaterialTags {
   idTag      Int
   idMaterial String
-  materiales materiales @relation(fields: [idMaterial], references: [id], onDelete: Cascade)
+  materiales Materiales @relation(fields: [idMaterial], references: [id], onDelete: Cascade)
   Tags       Tags       @relation(fields: [idTag], references: [id], onDelete: Cascade)
 
   @@id([idTag, idMaterial])
@@ -189,7 +189,7 @@ model Usuario {
   notifications Notification[]
 
   // Relaciones con sistema de materiales
-  materiales materiales[]
+  materiales Materiales[]
 
   @@index([email])
   @@index([estadoId])
@@ -197,7 +197,7 @@ model Usuario {
   @@map("usuarios")
 }
 
-model materiales {
+model Materiales {
   id             String           @id
   nombre         String
   userId         String
@@ -211,14 +211,14 @@ model materiales {
   Calificaciones Calificaciones[]
   MaterialTags   MaterialTags[]
   Usuario        Usuario          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  resumen        resumen[]
+  resumen        Resumen[]
 }
 
-model resumen {
+model Resumen {
   id         Int        @id @default(autoincrement())
   idMaterial String
   resumen    String
-  materiales materiales @relation(fields: [idMaterial], references: [id], onDelete: Cascade)
+  materiales Materiales @relation(fields: [idMaterial], references: [id], onDelete: Cascade)
 }
 
 model Rol {
