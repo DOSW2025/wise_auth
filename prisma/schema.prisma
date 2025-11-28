@@ -188,6 +188,9 @@ model Usuario {
   // Relaciones con sistema de notificaciones
   notifications Notification[]
 
+  // Relaciones con sistema de materiales
+  materiales materiales[]
+
   @@index([email])
   @@index([estadoId])
   @@index([rolId])
