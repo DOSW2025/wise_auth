@@ -9,82 +9,6 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// ============================================================================
-// MODELOS DE GESTIÓN DE USUARIOS (Base existente)
-// ============================================================================
-
-model Rol {
-  id          Int       @id @default(autoincrement())
-  nombre      String    @unique // estudiante, tutor, profesor, admin
-  descripcion String?
-  activo      Boolean   @default(true)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  usuarios    Usuario[]
-
-  @@map("roles")
-}
-
-model EstadoUsuario {
-  id          Int       @id @default(autoincrement())
-  nombre      String    @unique // activo, inactivo, suspendido
-  descripcion String?
-  activo      Boolean   @default(true)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  usuarios    Usuario[]
-
-  @@map("estados_usuario")
-}
-
-model Usuario {
-  id String @id @default(uuid())
-
-  // Campos básicos de identificación
-  email     String  @unique
-  nombre    String
-  apellido  String
-  telefono  String?
-  biografia String?
-  semestre  Int     @default(1)
-
-  // Autenticación OAuth
-  google_id  String? @unique @map("google_id")
-  avatar_url String? @map("avatar_url")
-
-  // Relaciones con tablas de gestión
-  rolId     Int           @default(1) @map("rol_id")
-  rol       Rol           @relation(fields: [rolId], references: [id])
-
-  estadoId  Int           @default(1) @map("estado_id")
-  estado    EstadoUsuario @relation(fields: [estadoId], references: [id])
-
-  ultimo_login DateTime? @map("ultimo_login")
-
-  // Campos específicos de Tutorías
-  // Disponibilidad del usuario en formato JSON
-  // Estructura: { monday: [{start, end, modalidad}], tuesday: [], ... }
-  disponibilidad Json?
-
-  // Timestamps
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relaciones con sistema de tutorías
-  tutorProfile      PerfilTutor?    // Perfil como tutor (opcional)
-  sessionsAsTutor   SesionTutoria[] @relation("tutorSessions")
-  sessionsAsStudent SesionTutoria[] @relation("studentSessions")
-  ratingsGiven      Rating[]        // Calificaciones dadas como estudiante
-
-  // Relaciones con sistema de notificaciones
-  notifications Notification[]
-
-  @@index([email])
-  @@index([estadoId])
-  @@index([rolId])
-  @@map("usuarios")
-}
-
 model Notification {
   id            Int      @unique @default(autoincrement())
   userId        String
@@ -98,9 +22,191 @@ model Notification {
   @@map("notifications")
 }
 
-// ============================================================================
-// MODELOS DE TUTORÍAS
-// ============================================================================
+model PerfilTutor {
+  usuarioId     String         @id @map("id_tutor")
+  bio           String?
+  reputacion    Float          @default(0)
+  ratings       Rating[]       @relation("TutorRatings")
+  tutorMaterias TutorMateria[]
+  usuario       Usuario        @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("tutor_profile")
+}
+
+model Materia {
+  id            String          @id @default(uuid())
+  codigo        String          @unique
+  nombre        String
+  temas         Tema[]
+  tutorMaterias TutorMateria[]
+  sesiones      SesionTutoria[]
+
+  @@index([codigo])
+  @@map("materia")
+}
+
+model Tema {
+  id         String  @id @default(uuid())
+  materiaId  String
+  nombreTema String
+  materia    Materia @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+
+  @@index([materiaId])
+  @@map("tema")
+}
+
+model TutorMateria {
+  id        Int         @id @default(autoincrement())
+  tutorId   String
+  materiaId String
+  materia   Materia     @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  tutor     PerfilTutor @relation(fields: [tutorId], references: [usuarioId], onDelete: Cascade)
+
+  @@unique([tutorId, materiaId])
+  @@map("tutor_materia")
+}
+
+model SesionTutoria {
+  id            String       @id @default(uuid()) @map("id_tutoria")
+  tutorId       String
+  studentId     String
+  materiaId     String
+  codigoMateria String
+  scheduledAt   DateTime
+  day           String
+  startTime     String
+  endTime       String
+  mode          Modalidad
+  status        EstadoSesion @default(PENDIENTE)
+  linkConexion  String?
+  lugar         String?
+  comentarios   String?
+  createdAt     DateTime     @default(now())
+  rating        Rating?
+  materia       Materia      @relation(fields: [materiaId], references: [id])
+  student       Usuario      @relation("studentSessions", fields: [studentId], references: [id])
+  tutor         Usuario      @relation("tutorSessions", fields: [tutorId], references: [id])
+
+  @@index([tutorId, scheduledAt])
+  @@index([materiaId])
+  @@index([codigoMateria])
+  @@index([status])
+  @@map("tutoria")
+}
+
+model Rating {
+  id        Int           @id @default(autoincrement())
+  sessionId String        @unique
+  tutorId   String
+  raterId   String
+  score     Int
+  comment   String?
+  createdAt DateTime      @default(now())
+  rater     Usuario       @relation(fields: [raterId], references: [id])
+  session   SesionTutoria @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  tutor     PerfilTutor   @relation("TutorRatings", fields: [tutorId], references: [usuarioId])
+
+  @@map("rating")
+}
+
+model Calificaciones {
+  id           Int        @id @default(autoincrement())
+  idMaterial   String
+  calificacion Int
+  comentario   String?
+  createdAt    DateTime   @default(now())
+  materiales   materiales @relation(fields: [idMaterial], references: [id], onDelete: Cascade)
+}
+
+model EstadoUsuario {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @unique
+  descripcion String?
+  activo      Boolean   @default(true)
+  created_at  DateTime  @default(now())
+  updated_at  DateTime
+  Usuario     Usuario[]
+}
+
+model MaterialTags {
+  idTag      Int
+  idMaterial String
+  materiales materiales @relation(fields: [idMaterial], references: [id], onDelete: Cascade)
+  Tags       Tags       @relation(fields: [idTag], references: [id], onDelete: Cascade)
+
+  @@id([idTag, idMaterial])
+  @@index([idMaterial])
+}
+
+model Tags {
+  id           Int            @id @default(autoincrement())
+  tag          String         @unique
+  MaterialTags MaterialTags[]
+}
+
+model Usuario {
+  id                String          @id
+  email             String          @unique
+  nombre            String
+  apellido          String
+  telefono          String?
+  semestre          Int             @default(1)
+  ultimo_login      DateTime?
+  created_at        DateTime        @default(now())
+  updated_at        DateTime
+  avatar_url        String?
+  google_id         String?         @unique
+  estado_id         Int             @default(1)
+  rol_id            Int             @default(1)
+  biografia         String?
+  disponibilidad    Json?
+  EstadoUsuario     EstadoUsuario   @relation(fields: [estado_id], references: [id])
+  rol               rol             @relation(fields: [rol_id], references: [id])
+  materiales        materiales[]
+  notifications     Notification[]
+  ratingsGiven      Rating[]
+  tutorProfile      PerfilTutor?
+  sessionsAsStudent SesionTutoria[] @relation("studentSessions")
+  sessionsAsTutor   SesionTutoria[] @relation("tutorSessions")
+
+  @@index([email])
+  @@index([estado_id])
+  @@index([rol_id])
+}
+
+model materiales {
+  id             String           @id
+  nombre         String
+  userId         String
+  url            String
+  descripcion    String?
+  vistos         Int              @default(0)
+  descargas      Int              @default(0)
+  createdAt      DateTime         @default(now())
+  hash           String?          @unique
+  updatedAt      DateTime
+  Calificaciones Calificaciones[]
+  MaterialTags   MaterialTags[]
+  Usuario        Usuario          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumen        resumen[]
+}
+
+model resumen {
+  id         Int        @id @default(autoincrement())
+  idMaterial String
+  resumen    String
+  materiales materiales @relation(fields: [idMaterial], references: [id], onDelete: Cascade)
+}
+
+model rol {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @unique
+  descripcion String?
+  activo      Boolean   @default(true)
+  created_at  DateTime  @default(now())
+  updated_at  DateTime
+  Usuario     Usuario[]
+}
 
 enum EstadoSesion {
   PENDIENTE
@@ -113,112 +219,4 @@ enum EstadoSesion {
 enum Modalidad {
   VIRTUAL
   PRESENCIAL
-}
-
-model PerfilTutor {
-  usuarioId String @id @map("id_tutor")
-  bio       String?
-
-  // Reputación del tutor basada en ratings (0-5)
-  ratings   Rating[] @relation("TutorRatings")
-  reputacion Float   @default(0)
-
-  // Materias que enseña
-  tutorMaterias TutorMateria[]
-
-  // Relación con usuario unificado
-  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-
-  @@map("tutor_profile")
-}
-
-model Materia {
-  id        String      @id @default(uuid())
-  codigo    String      @unique // Identificador de negocio (ej: DOSW, DOPO)
-  nombre    String
-
-  // relación many-to-many con tutores
-  tutorMaterias TutorMateria[]
-
-  // temas asociados
-  temas Tema[]
-
-  // sesiones de tutoría
-  sesiones SesionTutoria[]
-
-  @@index([codigo])
-  @@map("materia")
-}
-
-model Tema {
-  id         String      @id @default(uuid())
-  materiaId  String
-  nombreTema String
-
-  // relación con materia
-  materia    Materia  @relation(fields: [materiaId], references: [id], onDelete: Cascade)
-
-  @@index([materiaId])
-  @@map("tema")
-}
-
-model TutorMateria {
-  id         Int     @id @default(autoincrement())
-  tutorId    String
-  materiaId  String
-
-  // relacion muchos a muchos entre tutores y materias
-  tutor      PerfilTutor @relation(fields: [tutorId], references: [usuarioId], onDelete: Cascade)
-  materia    Materia      @relation(fields: [materiaId], references: [id], onDelete: Cascade)
-
-  @@unique([tutorId, materiaId])
-  @@map("tutor_materia")
-}
-
-
-
-model SesionTutoria {
-  id            String       @id @default(uuid()) @map("id_tutoria")
-  tutorId       String
-  studentId     String
-  materiaId     String
-  codigoMateria String
-  scheduledAt   DateTime     // Fecha completa en que está programada la tutoría
-  day           String       // Día de la semana (monday, tuesday, etc.)
-  startTime     String       // Hora de inicio formato "HH:mm" (ej: "08:00")
-  endTime       String       // Hora de fin formato "HH:mm" (ej: "10:00")
-  mode          Modalidad    // Enum: VIRTUAL o PRESENCIAL
-  status        EstadoSesion @default(PENDIENTE) // Enum: PENDIENTE, CONFIRMADA, COMPLETADA, CANCELADA
-  linkConexion  String?      // Requerido solo si mode = VIRTUAL
-  lugar         String?      // Requerido solo si mode = PRESENCIAL
-  comentarios   String?      // Comentarios opcionales del estudiante al solicitar la sesion
-  createdAt     DateTime     @default(now())
-
-  // Relaciones
-  tutor         Usuario      @relation("tutorSessions", fields: [tutorId], references: [id])
-  student       Usuario      @relation("studentSessions", fields: [studentId], references: [id])
-  materia       Materia      @relation(fields: [materiaId], references: [id])
-  rating        Rating?  
-  
-  @@index([tutorId, scheduledAt])
-  @@index([materiaId])
-  @@index([codigoMateria])
-  @@index([status])
-  @@map("tutoria")
-}
-
-model Rating {
-  id         Int      @id @default(autoincrement())
-  sessionId  String   @unique
-  tutorId    String   // tutor calificado
-  raterId    String   // quien califica (estudiante)
-  score      Int      // 1..5
-  comment    String?
-  createdAt  DateTime @default(now())
-
-  session    SesionTutoria  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  tutor      PerfilTutor    @relation("TutorRatings", fields: [tutorId], references: [usuarioId])
-  rater      Usuario        @relation(fields: [raterId], references: [id])
-
-  @@map("rating")
 }
