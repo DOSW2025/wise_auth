@@ -57,8 +57,9 @@ async function mainAuth() {
     customCss: '.swagger-ui .topbar { display: none }',
   });
 
-  await app.listen(envs.port);
 
-  
+
+  await app.listen(envs.port);
+  logger.log(`Microservicio de Auth escuchando en el puerto ${envs.port}`);
 }
 mainAuth();
