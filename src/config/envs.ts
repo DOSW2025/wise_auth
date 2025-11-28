@@ -28,18 +28,9 @@ const envsSchema = joi
     SERVICEBUS_CONNECTION_STRING: joi.string().required(),
   })
   .unknown(true);
-console.log('[ENV DEBUG] Available environment variables:', Object.keys(process.env).filter(k => !k.startsWith('npm_') && !k.startsWith('NODE_')));
-console.log('[ENV DEBUG] GATEWAY_URL:', process.env.GATEWAY_URL);
-console.log('[ENV DEBUG] DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
 
 const result = envsSchema.validate(process.env);
 if (result.error) {
-  console.error('[ENV DEBUG] Validation failed. Environment variables:', {
-    PORT: process.env.PORT,
-    DATABASE_URL: process.env.DATABASE_URL ? 'SET' : 'NOT SET',
-    GATEWAY_URL: process.env.GATEWAY_URL,
-    JWT_SECRET: process.env.JWT_SECRET ? 'SET' : 'NOT SET',
-  });
   throw new Error(`Config validation error: ${result.error.message}`);
 }
 const envVars = result.value as EnvVars;
