@@ -39,6 +39,8 @@ jobs:
           path: |
             .
             !node_modules
+          # Ensure package-lock.json and prisma.config.ts are included
+          include-hidden-files: true
 
   deploy:
     runs-on: ubuntu-latest
@@ -67,5 +69,8 @@ jobs:
           app-name: 'AuthService'
           slot-name: 'Production'
           package: .
+        env:
+          SCM_DO_BUILD_DURING_DEPLOYMENT: true
+          WEBSITE_NODE_DEFAULT_VERSION: '24.x'
 
           
