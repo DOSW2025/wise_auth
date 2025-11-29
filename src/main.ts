@@ -57,11 +57,9 @@ async function mainAuth() {
     customCss: '.swagger-ui .topbar { display: none }',
   });
 
-  await app.listen(envs.port);
-  logger.log(`Auth service running on port ${envs.port}`);
-  logger.log(`Swagger documentation available at http://localhost:${envs.port}/api/docs`);
 
-  console.log(`Aplicación corriendo en: http://localhost:${envs.port}`);
-  console.log(`Health check: http://localhost:${envs.port}/health`);
+
+  await app.listen(envs.port);
+  logger.log(`Microservicio de Auth escuchando en el puerto ${envs.port}`);
 }
 mainAuth();
