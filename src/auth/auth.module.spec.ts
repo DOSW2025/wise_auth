@@ -7,33 +7,25 @@ import { GoogleStrategy } from './strategies/google.strategy';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import {
+  mockAuthEnvConfig,
+  MockServiceBusClient,
+  MockDefaultAzureCredential,
+} from '../../test/test-mocks';
 
 // Mock the envs module
 jest.mock('../config', () => ({
-  envs: {
-    jwtSecret: 'test-secret',
-    jwtExpiration: '1h',
-    googleClientId: 'test-client-id',
-    googleClientSecret: 'test-secret',
-    googleCallbackUrl: 'http://localhost:3001/auth/google/callback',
-    servicebusconnectionstring: 'test-connection-string',
-  },
+  envs: mockAuthEnvConfig,
 }));
 
 // Mock Azure Service Bus
 jest.mock('@azure/service-bus', () => ({
-  ServiceBusClient: jest.fn().mockImplementation(() => ({
-    createSender: jest.fn().mockReturnValue({
-      sendMessages: jest.fn(),
-      close: jest.fn(),
-    }),
-    close: jest.fn(),
-  })),
+  ServiceBusClient: MockServiceBusClient,
 }));
 
 // Mock DefaultAzureCredential
 jest.mock('@azure/identity', () => ({
-  DefaultAzureCredential: jest.fn(),
+  DefaultAzureCredential: MockDefaultAzureCredential,
 }));
 
 describe('AuthModule', () => {

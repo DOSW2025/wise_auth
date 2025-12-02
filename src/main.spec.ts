@@ -2,36 +2,25 @@ import { Test } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import {
+  mockEnvConfig,
+  MockServiceBusClient,
+  MockDefaultAzureCredential,
+} from '../test/test-mocks';
 
 // Mock the envs module
 jest.mock('./config', () => ({
-  envs: {
-    port: 3001,
-    jwtSecret: 'test-secret',
-    jwtExpiration: '1h',
-    googleClientId: 'test-client-id',
-    googleClientSecret: 'test-secret',
-    googleCallbackUrl: 'http://localhost:3001/auth/google/callback',
-    databaseUrl: 'postgresql://test:test@localhost:5432/test',
-    directUrl: 'postgresql://test:test@localhost:5432/test',
-    servicebusconnectionstring: 'test-connection-string',
-  },
+  envs: mockEnvConfig,
 }));
 
 // Mock Azure Service Bus
 jest.mock('@azure/service-bus', () => ({
-  ServiceBusClient: jest.fn().mockImplementation(() => ({
-    createSender: jest.fn().mockReturnValue({
-      sendMessages: jest.fn(),
-      close: jest.fn(),
-    }),
-    close: jest.fn(),
-  })),
+  ServiceBusClient: MockServiceBusClient,
 }));
 
 // Mock DefaultAzureCredential
 jest.mock('@azure/identity', () => ({
-  DefaultAzureCredential: jest.fn(),
+  DefaultAzureCredential: MockDefaultAzureCredential,
 }));
 
 // Mock NestFactory

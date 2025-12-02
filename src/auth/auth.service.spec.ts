@@ -4,21 +4,19 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { BadRequestException } from '@nestjs/common';
 import { GoogleUserDto } from './dto/google-user.dto';
+import {
+  MockServiceBusClient,
+  MockDefaultAzureCredential,
+} from '../../test/test-mocks';
 
 // Mock de Azure Service Bus
 jest.mock('@azure/service-bus', () => ({
-  ServiceBusClient: jest.fn().mockImplementation(() => ({
-    createSender: jest.fn().mockReturnValue({
-      sendMessages: jest.fn(),
-      close: jest.fn(),
-    }),
-    close: jest.fn(),
-  })),
+  ServiceBusClient: MockServiceBusClient,
 }));
 
 // Mock de DefaultAzureCredential
 jest.mock('@azure/identity', () => ({
-  DefaultAzureCredential: jest.fn(),
+  DefaultAzureCredential: MockDefaultAzureCredential,
 }));
 
 describe('AuthService', () => {
