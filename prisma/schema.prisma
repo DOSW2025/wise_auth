@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -113,12 +112,12 @@ model Calificaciones {
   calificacion Int
   comentario   String?
   createdAt    DateTime   @default(now())
-  materiales   materiales @relation(fields: [idMaterial], references: [id], onDelete: Cascade)
+  materiales   Materiales @relation(fields: [idMaterial], references: [id], onDelete: Cascade)
 }
 
 model EstadoUsuario {
   id          Int       @id @default(autoincrement())
-  nombre      String    @unique // activo, inactivo, suspendido
+  nombre      String    @unique
   descripcion String?
   activo      Boolean   @default(true)
   createdAt   DateTime  @default(now()) @map("created_at")
@@ -131,7 +130,7 @@ model EstadoUsuario {
 model MaterialTags {
   idTag      Int
   idMaterial String
-  materiales materiales @relation(fields: [idMaterial], references: [id], onDelete: Cascade)
+  materiales Materiales @relation(fields: [idMaterial], references: [id], onDelete: Cascade)
   Tags       Tags       @relation(fields: [idTag], references: [id], onDelete: Cascade)
 
   @@id([idTag, idMaterial])
@@ -145,49 +144,31 @@ model Tags {
 }
 
 model Usuario {
-  id String @id @default(uuid())
-
-  // Campos básicos de identificación
-  email     String  @unique
-  nombre    String
-  apellido  String
-  telefono  String?
-  biografia String?
-  semestre  Int     @default(1)
-
-  // Autenticación OAuth
-  google_id  String? @unique @map("google_id")
-  avatar_url String? @map("avatar_url")
-
-  // Relaciones con tablas de gestión
-  rolId     Int           @default(1) @map("rol_id")
-  rol       Rol           @relation(fields: [rolId], references: [id])
-
-  estadoId  Int           @default(1) @map("estado_id")
-  estado    EstadoUsuario @relation(fields: [estadoId], references: [id])
-
-  ultimo_login DateTime? @map("ultimo_login")
-
-  // Campos específicos de Tutorías
-  // Disponibilidad del usuario en formato JSON
-  // Estructura: { monday: [{start, end, modalidad}], tuesday: [], ... }
-  disponibilidad Json?
-
-  // Timestamps
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relaciones con sistema de tutorías
-  tutorProfile      PerfilTutor?    // Perfil como tutor (opcional)
-  sessionsAsTutor   SesionTutoria[] @relation("tutorSessions")
-  sessionsAsStudent SesionTutoria[] @relation("studentSessions")
-  ratingsGiven      Rating[]        // Calificaciones dadas como estudiante
-
-  // Relaciones con sistema de notificaciones
-  notifications Notification[]
-
-  // Relaciones con sistema de materiales
-  materiales materiales[]
+  id                 String               @id @default(uuid())
+  email              String               @unique
+  nombre             String
+  apellido           String
+  telefono           String?
+  biografia          String?
+  semestre           Int                  @default(1)
+  google_id          String?              @unique @map("google_id")
+  avatar_url         String?              @map("avatar_url")
+  rolId              Int                  @default(1) @map("rol_id")
+  estadoId           Int                  @default(1) @map("estado_id")
+  ultimo_login       DateTime?            @map("ultimo_login")
+  disponibilidad     Json?
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+  Materiales         Materiales[]
+  mensaje_chat       mensaje_chat[]
+  miembro_grupo_chat miembro_grupo_chat[]
+  notifications      Notification[]
+  ratingsGiven       Rating[]
+  tutorProfile       PerfilTutor?
+  sessionsAsStudent  SesionTutoria[]      @relation("studentSessions")
+  sessionsAsTutor    SesionTutoria[]      @relation("tutorSessions")
+  estado             EstadoUsuario        @relation(fields: [estadoId], references: [id])
+  rol                Rol                  @relation(fields: [rolId], references: [id])
 
   @@index([email])
   @@index([estadoId])
@@ -195,7 +176,19 @@ model Usuario {
   @@map("usuarios")
 }
 
-model materiales {
+model Rol {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @unique
+  descripcion String?
+  activo      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  usuarios    Usuario[]
+
+  @@map("roles")
+}
+
+model Materiales {
   id             String           @id
   nombre         String
   userId         String
@@ -208,30 +201,55 @@ model materiales {
   updatedAt      DateTime
   Calificaciones Calificaciones[]
   MaterialTags   MaterialTags[]
-  Usuario        Usuario          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  resumen        resumen[]
-  
+  usuarios       Usuario          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Resumen        Resumen[]
 }
 
-model resumen {
+model Resumen {
   id         Int        @id @default(autoincrement())
   idMaterial String
   resumen    String
-  materiales materiales @relation(fields: [idMaterial], references: [id], onDelete: Cascade)
+  Materiales Materiales @relation(fields: [idMaterial], references: [id], onDelete: Cascade)
 }
 
-model Rol {
-  id          Int       @id @default(autoincrement())
-  nombre      String    @unique // estudiante, tutor, profesor, admin
-  descripcion String?
-  activo      Boolean   @default(true)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  usuarios    Usuario[]
+model grupo_chat {
+  id                 String               @id
+  nombre             String               @unique
+  creadoPor          String
+  fechaCreacion      DateTime             @default(now())
+  fechaActualizacion DateTime
+  mensaje_chat       mensaje_chat[]
+  miembro_grupo_chat miembro_grupo_chat[]
 
-  @@map("roles")
+  @@index([nombre])
 }
 
+model mensaje_chat {
+  id            String     @id
+  grupoId       String
+  usuarioId     String
+  contenido     String
+  fechaCreacion DateTime   @default(now())
+  fechaEdicion  DateTime?
+  grupo_chat    grupo_chat @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  usuarios      Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([grupoId, fechaCreacion])
+  @@index([usuarioId])
+}
+
+model miembro_grupo_chat {
+  id         String     @id
+  grupoId    String
+  usuarioId  String
+  fechaUnion DateTime   @default(now())
+  grupo_chat grupo_chat @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  usuarios   Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([grupoId, usuarioId])
+  @@index([grupoId])
+  @@index([usuarioId])
+}
 
 enum EstadoSesion {
   PENDIENTE
