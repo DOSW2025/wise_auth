@@ -10,7 +10,9 @@ describe('Auth Decorators', () => {
     it('should set IS_PUBLIC_KEY metadata to true', () => {
       class TestController {
         @Public()
-        testMethod() {}
+        testMethod() {
+          return 'test';
+        }
       }
 
       const reflector = new Reflector();
@@ -33,7 +35,9 @@ describe('Auth Decorators', () => {
     it('should set ROLES_KEY metadata with single role', () => {
       class TestController {
         @Roles(Role.ADMIN)
-        testMethod() {}
+        testMethod() {
+          return 'test';
+        }
       }
 
       const reflector = new Reflector();
@@ -45,7 +49,9 @@ describe('Auth Decorators', () => {
     it('should set ROLES_KEY metadata with multiple roles', () => {
       class TestController {
         @Roles(Role.ADMIN, Role.TUTOR)
-        testMethod() {}
+        testMethod() {
+          return 'test';
+        }
       }
 
       const reflector = new Reflector();
@@ -57,7 +63,9 @@ describe('Auth Decorators', () => {
     it('should set ROLES_KEY metadata with all three roles', () => {
       class TestController {
         @Roles(Role.ADMIN, Role.TUTOR, Role.ESTUDIANTE)
-        testMethod() {}
+        testMethod() {
+          return 'test';
+        }
       }
 
       const reflector = new Reflector();
@@ -78,7 +86,9 @@ describe('Auth Decorators', () => {
     it('should handle empty roles array', () => {
       class TestController {
         @Roles()
-        testMethod() {}
+        testMethod() {
+          return 'test';
+        }
       }
 
       const reflector = new Reflector();
@@ -89,6 +99,27 @@ describe('Auth Decorators', () => {
   });
 
   describe('@GetUser', () => {
+    let mockExecutionContext: ExecutionContext;
+    let mockRequest: any;
+
+    beforeEach(() => {
+      mockRequest = {
+        user: {
+          id: '123',
+          email: 'test@example.com',
+          rol: Role.ESTUDIANTE,
+          nombre: 'John',
+          apellido: 'Doe',
+        },
+      };
+
+      mockExecutionContext = {
+        switchToHttp: jest.fn().mockReturnValue({
+          getRequest: jest.fn().mockReturnValue(mockRequest),
+        }),
+      } as any;
+    });
+
     it('should be defined', () => {
       expect(GetUser).toBeDefined();
     });
@@ -98,18 +129,71 @@ describe('Auth Decorators', () => {
     });
 
     it('should return a parameter decorator', () => {
-      // GetUser is a parameter decorator factory
-      // When called, it should return a decorator function
       const decorator = GetUser();
       expect(typeof decorator).toBe('function');
     });
 
-    it('should accept optional data parameter', () => {
-      // Should not throw when called with no arguments
-      expect(() => GetUser()).not.toThrow();
+    it('should return the entire user object when no property is specified', () => {
+      // Access the internal factory function
+      const callback = (GetUser as any).factory(undefined);
+      const result = callback(undefined, mockExecutionContext);
 
-      // Should not throw when called with a string argument
+      expect(result).toEqual(mockRequest.user);
+    });
+
+    it('should return a specific user property when data parameter is provided', () => {
+      const emailCallback = (GetUser as any).factory('email');
+      const emailResult = emailCallback('email', mockExecutionContext);
+      expect(emailResult).toBe('test@example.com');
+
+      const idCallback = (GetUser as any).factory('id');
+      const idResult = idCallback('id', mockExecutionContext);
+      expect(idResult).toBe('123');
+
+      const rolCallback = (GetUser as any).factory('rol');
+      const rolResult = rolCallback('rol', mockExecutionContext);
+      expect(rolResult).toBe(Role.ESTUDIANTE);
+    });
+
+    it('should return undefined when accessing non-existent property', () => {
+      const callback = (GetUser as any).factory('nonExistentProperty');
+      const result = callback('nonExistentProperty', mockExecutionContext);
+
+      expect(result).toBeUndefined();
+    });
+
+    it('should return undefined when user is not present in request', () => {
+      mockRequest.user = undefined;
+
+      const callback = (GetUser as any).factory(undefined);
+      const result = callback(undefined, mockExecutionContext);
+
+      expect(result).toBeUndefined();
+    });
+
+    it('should return undefined when accessing property on undefined user', () => {
+      mockRequest.user = undefined;
+
+      const callback = (GetUser as any).factory('email');
+      const result = callback('email', mockExecutionContext);
+
+      expect(result).toBeUndefined();
+    });
+
+    it('should work with different user properties', () => {
+      const nombreCallback = (GetUser as any).factory('nombre');
+      const nombreResult = nombreCallback('nombre', mockExecutionContext);
+      expect(nombreResult).toBe('John');
+
+      const apellidoCallback = (GetUser as any).factory('apellido');
+      const apellidoResult = apellidoCallback('apellido', mockExecutionContext);
+      expect(apellidoResult).toBe('Doe');
+    });
+
+    it('should accept optional data parameter', () => {
+      expect(() => GetUser()).not.toThrow();
       expect(() => GetUser('email')).not.toThrow();
+      expect(() => GetUser('id')).not.toThrow();
     });
   });
 });

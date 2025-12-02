@@ -3,6 +3,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { GoogleUserDto } from './dto/google-user.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
+import { HttpStatus } from '@nestjs/common';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -23,7 +24,7 @@ describe('AuthController', () => {
   const mockAuthResponse: AuthResponseDto = {
     access_token: 'mock-jwt-token',
     user: {
-      id: 1,
+      id: 'user-uuid-123',
       email: 'test@example.com',
       nombre: 'John',
       apellido: 'Doe',
@@ -68,14 +69,23 @@ describe('AuthController', () => {
   });
 
   describe('googleAuthCallback', () => {
-    const mockRequest = {
-      user: mockGoogleUserDto,
-    } as any;
+    let mockRequest: any;
+    let mockResponse: any;
 
-    it('should process Google callback and return auth response', async () => {
+    beforeEach(() => {
+      mockRequest = {
+        user: mockGoogleUserDto,
+      };
+
+      mockResponse = {
+        redirect: jest.fn(),
+      };
+    });
+
+    it('should process Google callback and redirect with token', async () => {
       mockAuthService.validateGoogleUser.mockResolvedValue(mockAuthResponse);
 
-      const result = await controller.googleAuthCallback(mockRequest);
+      await controller.googleAuthCallback(mockRequest, mockResponse);
 
       expect(authService.validateGoogleUser).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -87,9 +97,41 @@ describe('AuthController', () => {
         }),
       );
 
-      expect(result).toEqual(mockAuthResponse);
-      expect(result.access_token).toBe('mock-jwt-token');
-      expect(result.user.email).toBe('test@example.com');
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        HttpStatus.TEMPORARY_REDIRECT,
+        expect.stringContaining('token=mock-jwt-token'),
+      );
+
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        HttpStatus.TEMPORARY_REDIRECT,
+        expect.stringContaining('user='),
+      );
+    });
+
+    it('should redirect to error page when user is not in request', async () => {
+      const requestWithoutUser = {};
+
+      await controller.googleAuthCallback(requestWithoutUser as any, mockResponse);
+
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        HttpStatus.TEMPORARY_REDIRECT,
+        expect.stringContaining('error='),
+      );
+
+      expect(authService.validateGoogleUser).not.toHaveBeenCalled();
+    });
+
+    it('should redirect to error page when authentication fails', async () => {
+      mockAuthService.validateGoogleUser.mockRejectedValue(
+        new Error('Authentication failed'),
+      );
+
+      await controller.googleAuthCallback(mockRequest, mockResponse);
+
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        HttpStatus.TEMPORARY_REDIRECT,
+        expect.stringContaining('error='),
+      );
     });
 
     it('should handle user without avatarUrl', async () => {
@@ -110,19 +152,18 @@ describe('AuthController', () => {
 
       mockAuthService.validateGoogleUser.mockResolvedValue(responseWithoutAvatar);
 
-      const result = await controller.googleAuthCallback(requestWithoutAvatar);
+      await controller.googleAuthCallback(requestWithoutAvatar, mockResponse);
 
       expect(authService.validateGoogleUser).toHaveBeenCalledWith(
         expect.objectContaining({
-          googleId: mockGoogleUserDto.googleId,
-          email: mockGoogleUserDto.email,
-          nombre: mockGoogleUserDto.nombre,
-          apellido: mockGoogleUserDto.apellido,
           avatarUrl: undefined,
         }),
       );
 
-      expect(result.user.avatarUrl).toBeNull();
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        HttpStatus.TEMPORARY_REDIRECT,
+        expect.stringContaining('token='),
+      );
     });
 
     it('should have @Public decorator', () => {
@@ -130,32 +171,52 @@ describe('AuthController', () => {
       expect(metadata).toBe(true);
     });
 
-    it('should create GoogleUserDto with correct data from request', async () => {
+    it('should redirect with properly formatted URL', async () => {
       mockAuthService.validateGoogleUser.mockResolvedValue(mockAuthResponse);
 
-      await controller.googleAuthCallback(mockRequest);
+      await controller.googleAuthCallback(mockRequest, mockResponse);
 
-      expect(authService.validateGoogleUser).toHaveBeenCalledWith(
-        expect.objectContaining({
-          googleId: 'google-123',
-          email: 'test@example.com',
-          nombre: 'John',
-          apellido: 'Doe',
-          avatarUrl: 'https://example.com/avatar.jpg',
-        }),
-      );
+      const redirectUrl = mockResponse.redirect.mock.calls[0][1];
+
+      // Should be a valid URL
+      expect(() => new URL(redirectUrl)).not.toThrow();
+
+      // Should contain required parameters
+      expect(redirectUrl).toContain('token=');
+      expect(redirectUrl).toContain('user=');
     });
 
-    it('should propagate errors from AuthService', async () => {
-      const error = new Error('Authentication failed');
-      mockAuthService.validateGoogleUser.mockRejectedValue(error);
+    it('should encode user data properly in redirect URL', async () => {
+      mockAuthService.validateGoogleUser.mockResolvedValue(mockAuthResponse);
 
-      await expect(controller.googleAuthCallback(mockRequest)).rejects.toThrow(
-        'Authentication failed',
-      );
+      await controller.googleAuthCallback(mockRequest, mockResponse);
+
+      const redirectUrl = mockResponse.redirect.mock.calls[0][1];
+      const url = new URL(redirectUrl);
+      const userParam = url.searchParams.get('user');
+
+      expect(userParam).toBeDefined();
+
+      // Should be valid JSON
+      expect(() => JSON.parse(userParam!)).not.toThrow();
+
+      const userData = JSON.parse(userParam!);
+      expect(userData.email).toBe(mockAuthResponse.user.email);
+      expect(userData.nombre).toBe(mockAuthResponse.user.nombre);
     });
 
-    it('should handle different user roles correctly', async () => {
+    it('should redirect to gateway URL', async () => {
+      mockAuthService.validateGoogleUser.mockResolvedValue(mockAuthResponse);
+
+      await controller.googleAuthCallback(mockRequest, mockResponse);
+
+      const redirectUrl = mockResponse.redirect.mock.calls[0][1];
+
+      // Should redirect to gateway with /wise prefix
+      expect(redirectUrl).toContain('/wise/auth/callback');
+    });
+
+    it('should handle different user roles in redirect', async () => {
       const tutorResponse = {
         ...mockAuthResponse,
         user: {
@@ -166,19 +227,54 @@ describe('AuthController', () => {
 
       mockAuthService.validateGoogleUser.mockResolvedValue(tutorResponse);
 
-      const result = await controller.googleAuthCallback(mockRequest);
+      await controller.googleAuthCallback(mockRequest, mockResponse);
 
-      expect(result.user.rol).toBe('tutor');
+      const redirectUrl = mockResponse.redirect.mock.calls[0][1];
+      const url = new URL(redirectUrl);
+      const userParam = url.searchParams.get('user');
+      const userData = JSON.parse(userParam!);
+
+      expect(userData.rol).toBe('tutor');
     });
 
-    it('should return valid access_token', async () => {
+    it('should redirect with error when validateGoogleUser throws BadRequestException', async () => {
+      const error = new Error('Error al procesar autenticación con Google');
+      mockAuthService.validateGoogleUser.mockRejectedValue(error);
+
+      await controller.googleAuthCallback(mockRequest, mockResponse);
+
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        HttpStatus.TEMPORARY_REDIRECT,
+        expect.stringContaining('error='),
+      );
+
+      const redirectUrl = mockResponse.redirect.mock.calls[0][1];
+      const url = new URL(redirectUrl);
+      const errorParam = url.searchParams.get('error');
+      expect(errorParam).toBe('Error al procesar autenticación con Google');
+    });
+
+    it('should use TEMPORARY_REDIRECT status code', async () => {
       mockAuthService.validateGoogleUser.mockResolvedValue(mockAuthResponse);
 
-      const result = await controller.googleAuthCallback(mockRequest);
+      await controller.googleAuthCallback(mockRequest, mockResponse);
 
-      expect(result.access_token).toBeDefined();
-      expect(typeof result.access_token).toBe('string');
-      expect(result.access_token.length).toBeGreaterThan(0);
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        HttpStatus.TEMPORARY_REDIRECT,
+        expect.any(String),
+      );
+    });
+
+    it('should handle gateway URL with existing /wise path', async () => {
+      mockAuthService.validateGoogleUser.mockResolvedValue(mockAuthResponse);
+
+      await controller.googleAuthCallback(mockRequest, mockResponse);
+
+      const redirectUrl = mockResponse.redirect.mock.calls[0][1];
+
+      // Should contain /wise/auth/callback, not /wise/wise/auth/callback
+      expect(redirectUrl).toMatch(/\/wise\/auth\/callback/);
+      expect(redirectUrl).not.toMatch(/\/wise\/wise/);
     });
   });
 });
