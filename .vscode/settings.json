@@ -1,4 +1,0 @@
-{
-    "prisma-smart-formatter.typescript.defaultFormatter": "vscode.typescript-language-features",
-    "prisma-smart-formatter.prisma.defaultFormatter": "Prisma.prisma"
-}
