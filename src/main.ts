@@ -15,8 +15,6 @@ async function mainAuth() {
     credentials: true,
   });
 
-  //Esto es para activar los filtros o DTOS en el proyecto
-  //sin esto, Nest por defecto no los tomará
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
