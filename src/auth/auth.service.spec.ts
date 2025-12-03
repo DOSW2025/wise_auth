@@ -4,6 +4,20 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { BadRequestException } from '@nestjs/common';
 import { GoogleUserDto } from './dto/google-user.dto';
+import {
+  MockServiceBusClient,
+  MockDefaultAzureCredential,
+} from '../../test/test-mocks';
+
+// Mock de Azure Service Bus
+jest.mock('@azure/service-bus', () => ({
+  ServiceBusClient: MockServiceBusClient,
+}));
+
+// Mock de DefaultAzureCredential
+jest.mock('@azure/identity', () => ({
+  DefaultAzureCredential: MockDefaultAzureCredential,
+}));
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -59,55 +73,77 @@ describe('AuthService', () => {
     };
 
     const mockUser = {
-      id: 1,
+      id: 'user-uuid-123',
       email: 'test@example.com',
       nombre: 'John',
       apellido: 'Doe',
       google_id: 'google-123',
       avatar_url: 'https://example.com/avatar.jpg',
-      email_verificado: true,
-      estado: 'activo',
-      rol: 'estudiante',
+      rolId: 1,
+      estadoId: 1,
       ultimo_login: new Date(),
       password: null,
       fecha_creacion: new Date(),
       fecha_actualizacion: new Date(),
+      rol: {
+        id: 1,
+        nombre: 'estudiante',
+      },
+      estado: {
+        id: 1,
+        nombre: 'activo',
+      },
     };
 
     it('should create a new user from Google OAuth when user does not exist', async () => {
+      const mockSender = {
+        sendMessages: jest.fn(),
+        close: jest.fn(),
+      };
+
+      // Mock Service Bus createSender
+      (service as any).client.createSender = jest.fn().mockReturnValue(mockSender);
+
       mockPrismaService.usuario.findFirst.mockResolvedValue(null);
       mockPrismaService.usuario.create.mockResolvedValue(mockUser);
       mockJwtService.sign.mockReturnValue('mock-jwt-token');
 
       const result = await service.validateGoogleUser(googleUserDto);
 
-      expect(prismaService.usuario.findFirst).toHaveBeenCalledWith({
+      expect((prismaService as any).usuario.findFirst).toHaveBeenCalledWith({
         where: {
           OR: [
             { google_id: googleUserDto.googleId },
             { email: googleUserDto.email },
           ],
         },
+        include: {
+          rol: true,
+          estado: true,
+        },
       });
 
-      expect(prismaService.usuario.create).toHaveBeenCalledWith({
+      expect((prismaService as any).usuario.create).toHaveBeenCalledWith({
         data: {
           email: googleUserDto.email,
           nombre: googleUserDto.nombre,
           apellido: googleUserDto.apellido,
           google_id: googleUserDto.googleId,
           avatar_url: googleUserDto.avatarUrl,
-          email_verificado: true,
-          estado: 'activo',
-          rol: 'estudiante',
+          rolId: 1,
+          estadoId: 1,
           ultimo_login: expect.any(Date),
+        },
+        include: {
+          rol: true,
+          estado: true,
         },
       });
 
       expect(jwtService.sign).toHaveBeenCalledWith({
         sub: mockUser.id,
         email: mockUser.email,
-        role: mockUser.rol,
+        rol: mockUser.rol.nombre,
       });
 
       expect(result).toEqual({
@@ -117,10 +153,22 @@ describe('AuthService', () => {
           email: mockUser.email,
           nombre: mockUser.nombre,
           apellido: mockUser.apellido,
-          rol: mockUser.rol,
+          rol: mockUser.rol.nombre,
           avatarUrl: mockUser.avatar_url,
         },
       });
+
+      // Verify Service Bus notification was sent
+      expect(mockSender.sendMessages).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          email: mockUser.email,
+          name: `${mockUser.nombre} ${mockUser.apellido}`,
+          template: 'nuevoUsuario',
+          resumen: expect.stringContaining('Bienvenid@'),
+          guardar: true,
+        }),
+      });
+      expect(mockSender.close).toHaveBeenCalled();
     });
 
     it('should link existing user account with Google when user exists but has no google_id', async () => {
@@ -140,16 +188,19 @@ describe('AuthService', () => {
 
       const result = await service.validateGoogleUser(googleUserDto);
 
-      expect(prismaService.usuario.findFirst).toHaveBeenCalled();
+      expect((prismaService as any).usuario.findFirst).toHaveBeenCalled();
 
-      expect(prismaService.usuario.update).toHaveBeenCalledWith({
+      expect((prismaService as any).usuario.update).toHaveBeenCalledWith({
         where: { id: existingUserWithoutGoogle.id },
         data: {
           google_id: googleUserDto.googleId,
           avatar_url: googleUserDto.avatarUrl,
-          email_verificado: true,
-          estado: 'activo',
+          estadoId: 1,
           ultimo_login: expect.any(Date),
+        },
+        include: {
+          rol: true,
+          estado: true,
         },
       });
 
@@ -167,11 +218,15 @@ describe('AuthService', () => {
 
       const result = await service.validateGoogleUser(googleUserDto);
 
-      expect(prismaService.usuario.update).toHaveBeenCalledWith({
+      expect((prismaService as any).usuario.update).toHaveBeenCalledWith({
         where: { id: mockUser.id },
         data: {
           ultimo_login: expect.any(Date),
           avatar_url: googleUserDto.avatarUrl,
+        },
+        include: {
+          rol: true,
+          estado: true,
         },
       });
 
@@ -180,6 +235,13 @@ describe('AuthService', () => {
 
     it('should generate a valid JWT token with correct payload', async () => {
       mockPrismaService.usuario.findFirst.mockResolvedValue(null);
+
+      const mockSender = {
+        sendMessages: jest.fn(),
+        close: jest.fn(),
+      };
+      (service as any).client.createSender = jest.fn().mockReturnValue(mockSender);
+
       mockPrismaService.usuario.create.mockResolvedValue(mockUser);
       mockJwtService.sign.mockReturnValue('mock-jwt-token');
 
@@ -188,7 +250,7 @@ describe('AuthService', () => {
       expect(jwtService.sign).toHaveBeenCalledWith({
         sub: mockUser.id,
         email: mockUser.email,
-        role: mockUser.rol,
+        rol: mockUser.rol.nombre,
       });
     });
 
@@ -234,6 +296,12 @@ describe('AuthService', () => {
         avatarUrl: undefined,
       };
 
+      const mockSender = {
+        sendMessages: jest.fn(),
+        close: jest.fn(),
+      };
+      (service as any).client.createSender = jest.fn().mockReturnValue(mockSender);
+
       mockPrismaService.usuario.findFirst.mockResolvedValue(null);
       mockPrismaService.usuario.create.mockResolvedValue({
         ...mockUser,
@@ -243,10 +311,14 @@ describe('AuthService', () => {
 
       const result = await service.validateGoogleUser(googleUserDtoWithoutAvatar);
 
-      expect(prismaService.usuario.create).toHaveBeenCalledWith({
+      expect((prismaService as any).usuario.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           avatar_url: undefined,
         }),
+        include: {
+          rol: true,
+          estado: true,
+        },
       });
 
       expect(result.user.avatarUrl).toBeNull();
@@ -260,12 +332,16 @@ describe('AuthService', () => {
 
       await service.validateGoogleUser(googleUserDto);
 
-      expect(prismaService.usuario.findFirst).toHaveBeenCalledWith({
+      expect((prismaService as any).usuario.findFirst).toHaveBeenCalledWith({
         where: {
           OR: [
             { google_id: googleUserDto.googleId },
             { email: googleUserDto.email },
           ],
+        },
+        include: {
+          rol: true,
+          estado: true,
         },
       });
     });
@@ -278,14 +354,53 @@ describe('AuthService', () => {
 
       await service.validateGoogleUser(googleUserDto);
 
-      expect(prismaService.usuario.findFirst).toHaveBeenCalledWith({
+      expect((prismaService as any).usuario.findFirst).toHaveBeenCalledWith({
         where: {
           OR: [
             { google_id: googleUserDto.googleId },
             { email: googleUserDto.email },
           ],
         },
+        include: {
+          rol: true,
+          estado: true,
+        },
       });
+    });
+
+    it('should handle Service Bus notification error gracefully', async () => {
+      const mockSender = {
+        sendMessages: jest.fn().mockRejectedValue(new Error('Service Bus error')),
+        close: jest.fn(),
+      };
+      (service as any).client.createSender = jest.fn().mockReturnValue(mockSender);
+
+      mockPrismaService.usuario.findFirst.mockResolvedValue(null);
+      mockPrismaService.usuario.create.mockResolvedValue(mockUser);
+      mockJwtService.sign.mockReturnValue('mock-jwt-token');
+
+      // Should not throw even if notification fails
+      const result = await service.validateGoogleUser(googleUserDto);
+
+      expect(result).toBeDefined();
+      expect(result.access_token).toBe('mock-jwt-token');
+    });
+
+    it('should not send notification when user already exists', async () => {
+      const mockSender = {
+        sendMessages: jest.fn(),
+        close: jest.fn(),
+      };
+      (service as any).client.createSender = jest.fn().mockReturnValue(mockSender);
+
+      mockPrismaService.usuario.findFirst.mockResolvedValue(mockUser);
+      mockPrismaService.usuario.update.mockResolvedValue(mockUser);
+      mockJwtService.sign.mockReturnValue('mock-jwt-token');
+
+      await service.validateGoogleUser(googleUserDto);
+
+      // Notification should not be sent for existing users
+      expect(mockSender.sendMessages).not.toHaveBeenCalled();
     });
   });
 });

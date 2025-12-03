@@ -6,7 +6,7 @@ import { Role } from '../enums/role.enum';
 // Mock the envs module
 jest.mock('../../config', () => ({
   envs: {
-    jwtsecret: 'test-secret-key',
+    jwtSecret: 'test-secret-key',
   },
 }));
 

@@ -37,13 +37,14 @@ async function mainAuth() {
     .setDescription('Microservicio de autenticación y autorización con OAuth 2.0 de Google y JWT')
     .setVersion('1.0')
     .addTag('auth', 'Endpoints de autenticación')
+    .addTag('gestion-usuarios', 'Endpoints para administración de usuarios (requiere autenticación)')
     .addBearerAuth(
       {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
         name: 'JWT',
-        description: 'Ingresa tu token JWT',
+        description: 'Ingresa tu token JWT obtenido del endpoint /auth/google/callback',
         in: 'header',
       },
       'JWT-auth',
