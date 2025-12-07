@@ -5,7 +5,6 @@ import { AuthService } from './auth.service';
 import { Public } from './decorators/public.decorator';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { GoogleUserDto } from './dto/google-user.dto';
-import { AuthResponseDto } from './dto/auth-response.dto';
 import { envs } from 'src/config';
 
 interface RequestWithGoogleUser extends Request {

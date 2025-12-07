@@ -10,6 +10,7 @@ import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { ServiceBusClient } from '@azure/service-bus';
 
 @Module({
   imports: [
@@ -29,6 +30,12 @@ import { GoogleAuthGuard } from './guards/google-auth.guard';
     JwtAuthGuard,
     RolesGuard,
     GoogleAuthGuard,
+    {
+      provide: ServiceBusClient,
+      useFactory: () => {
+        return new ServiceBusClient(envs.servicebusconnectionstring);
+      },
+    }
   ],
   exports: [JwtStrategy, JwtAuthGuard, RolesGuard, PassportModule],
 })
