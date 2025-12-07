@@ -9,7 +9,7 @@ import { Prisma } from '@prisma/client';
 export class GestionUsuariosService {
   private readonly CACHE_KEY_STATISTICS = 'estadisticas:usuarios';
   private readonly CACHE_KEY_STATISTICS_ROLES = 'estadisticas:usuarios:roles';
-  private readonly CACHE_KEY_USERS_PREFIX = 'usuarios:list:';
+  private readonly CACHE_KEY_GROWTH_PREFIX = 'estadisticas:usuarios:crecimiento:';
   private readonly CACHE_KEY_REGISTRY = 'usuarios:cache:registry';
 
   constructor(
@@ -23,6 +23,13 @@ export class GestionUsuariosService {
       this.cacheManager.del(this.CACHE_KEY_STATISTICS),
       this.cacheManager.del(this.CACHE_KEY_STATISTICS_ROLES),
     ]);
+
+    // Invalidar cachés de crecimiento (todas las variantes de semanas)
+    // Común tener: 4, 8, 12, 16, 20, 24 semanas
+    const growthKeys = [4, 8, 12, 16, 20, 24].map(
+      weeks => `${this.CACHE_KEY_GROWTH_PREFIX}semanas:${weeks}`
+    );
+    await Promise.all(growthKeys.map(key => this.cacheManager.del(key)));
 
     // Obtener registro de claves de cache de usuarios
     const registry = await this.cacheManager.get<string[]>(this.CACHE_KEY_REGISTRY) || [];
@@ -335,5 +342,97 @@ export class GestionUsuariosService {
     await this.cacheManager.set(CACHE_KEY, resultado, 300000);
 
     return resultado;
+  }
+
+  async getUserGrowthByWeek(weeks: number = 12) {
+    const CACHE_KEY = `estadisticas:usuarios:crecimiento:semanas:${weeks}`;
+
+    // Intentar obtener del caché
+    const cached = await this.cacheManager.get(CACHE_KEY);
+    if (cached) {
+      return cached;
+    }
+
+    // Calcular la fecha de inicio (hace N semanas)
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - (weeks * 7));
+
+    // Obtener todos los usuarios creados en el rango de fechas
+    const usuarios = await this.prisma.usuario.findMany({
+      where: {
+        createdAt: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      select: {
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    // Agrupar usuarios por semana
+    const semanas = new Map<string, number>();
+
+    // Inicializar todas las semanas con 0
+    for (let i = 0; i < weeks; i++) {
+      const weekStart = new Date(startDate);
+      weekStart.setDate(weekStart.getDate() + (i * 7));
+      const weekKey = this.getWeekKey(weekStart);
+      semanas.set(weekKey, 0);
+    }
+
+    // Contar usuarios por semana
+    usuarios.forEach(usuario => {
+      const weekKey = this.getWeekKey(usuario.createdAt);
+      const current = semanas.get(weekKey) || 0;
+      semanas.set(weekKey, current + 1);
+    });
+
+    // Convertir a array ordenado
+    const data = Array.from(semanas.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([semana, conteo]) => ({
+        semana,
+        conteo,
+        fecha: this.parsearSemana(semana),
+      }));
+
+    const resultado = {
+      periodo: {
+        inicio: startDate.toISOString(),
+        fin: endDate.toISOString(),
+        semanas: weeks,
+      },
+      totalUsuariosNuevos: usuarios.length,
+      data,
+    };
+
+    // Guardar en caché por 10 minutos (600000 ms)
+    await this.cacheManager.set(CACHE_KEY, resultado, 600000);
+
+    return resultado;
+  }
+
+  private getWeekKey(date: Date): string {
+    const year = date.getFullYear();
+    const startOfYear = new Date(year, 0, 1);
+    const weekNumber = Math.ceil(((date.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
+    return `${year}-W${weekNumber.toString().padStart(2, '0')}`;
+  }
+
+  private parsearSemana(weekKey: string): string {
+    const [year, week] = weekKey.split('-W');
+    const startOfYear = new Date(parseInt(year), 0, 1);
+    const weekStart = new Date(startOfYear);
+    weekStart.setDate(startOfYear.getDate() + (parseInt(week) - 1) * 7);
+
+    return weekStart.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'short'
+    });
   }
 }
