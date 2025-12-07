@@ -14,7 +14,7 @@ export class AuthService implements OnModuleDestroy {
   private readonly CACHE_KEY_STATISTICS = 'estadisticas:usuarios';
   private readonly CACHE_KEY_STATISTICS_ROLES = 'estadisticas:usuarios:roles';
   private readonly CACHE_KEY_REGISTRY = 'usuarios:cache:registry';
-  private readonly notification: ServiceBusSender;
+  private notification;
 
   constructor(
     private prisma: PrismaService,
