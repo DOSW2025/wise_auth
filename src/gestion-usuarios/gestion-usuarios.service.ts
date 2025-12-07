@@ -24,8 +24,6 @@ export class GestionUsuariosService {
       this.cacheManager.del(this.CACHE_KEY_STATISTICS_ROLES),
     ]);
 
-    // Invalidar cachés de crecimiento (todas las variantes de semanas)
-    // Común tener: 4, 8, 12, 16, 20, 24 semanas
     const growthKeys = [4, 8, 12, 16, 20, 24].map(
       weeks => `${this.CACHE_KEY_GROWTH_PREFIX}semanas:${weeks}`
     );
