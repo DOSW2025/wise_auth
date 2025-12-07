@@ -291,4 +291,119 @@ export class GestionUsuariosController {
   deleteMyAccount(@GetUser('id') userId: string) {
     return this.gestionUsuariosService.deleteUser(userId);
   }
+
+  @Get('estadisticas/usuarios')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Obtener estadísticas de usuarios',
+    description: 'Obtiene un informe completo con el conteo y porcentaje de usuarios activos, suspendidos e inactivos. Solo accesible por administradores.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Estadísticas obtenidas exitosamente',
+    schema: {
+      example: {
+        resumen: {
+          total: 100,
+          activos: {
+            conteo: 75,
+            porcentaje: 75.00
+          },
+          suspendidos: {
+            conteo: 15,
+            porcentaje: 15.00
+          },
+          inactivos: {
+            conteo: 10,
+            porcentaje: 10.00
+          }
+        },
+        usuarios: {
+          activos: [
+            {
+              id: '9b1deb3d-3b7d-4bad-9bdd-2b0d70cf0d28',
+              nombre: 'Juan',
+              apellido: 'Pérez',
+              email: 'juan@example.com'
+            }
+          ],
+          suspendidos: [
+            {
+              id: '8a2cdb2c-2a6c-3aac-8acc-1a0c60bc0c17',
+              nombre: 'María',
+              apellido: 'García',
+              email: 'maria@example.com'
+            }
+          ],
+          inactivos: [
+            {
+              id: '7b3dea1b-1b5b-2bba-7bbb-0b1b50ab0b06',
+              nombre: 'Carlos',
+              apellido: 'López',
+              email: 'carlos@example.com'
+            }
+          ]
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado - Token JWT inválido o expirado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - No tienes permisos de administrador',
+  })
+  stadisticUsers() {
+    return this.gestionUsuariosService.stadisticUsers();
+  }
+
+  @Get('estadisticas/roles')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Obtener estadísticas de usuarios por rol',
+    description: 'Obtiene el total de usuarios y cuántos usuarios tienen cada rol (estudiante, tutor, admin). Solo accesible por administradores.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Estadísticas por rol obtenidas exitosamente',
+    schema: {
+      example: {
+        totalUsuarios: 100,
+        roles: [
+          {
+            rolId: 1,
+            rol: 'estudiante',
+            conteo: 75,
+            porcentaje: 75.00
+          },
+          {
+            rolId: 2,
+            rol: 'tutor',
+            conteo: 20,
+            porcentaje: 20.00
+          },
+          {
+            rolId: 3,
+            rol: 'admin',
+            conteo: 5,
+            porcentaje: 5.00
+          }
+        ]
+      }
+    }
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado - Token JWT inválido o expirado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - No tienes permisos de administrador',
+  })
+  getUsersByRoleStatistics() {
+    return this.gestionUsuariosService.getUsersByRoleStatistics();
+  }
+
 }

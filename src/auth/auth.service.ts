@@ -1,26 +1,53 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, Inject, OnModuleDestroy } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { GoogleUserDto } from './dto/google-user.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
-import { DefaultAzureCredential } from '@azure/identity';
-import { ServiceBusClient } from '@azure/service-bus';
-import { envs } from 'src/config';
+import { ServiceBusClient, ServiceBusMessage, ServiceBusSender } from '@azure/service-bus';
 import { NotificacionesDto, TemplateNotificacionesEnum } from './dto/notificaciones.dto';
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleDestroy {
   private readonly logger = new Logger(AuthService.name);
-  private client: ServiceBusClient;
+  private readonly CACHE_KEY_STATISTICS = 'estadisticas:usuarios';
+  private readonly CACHE_KEY_STATISTICS_ROLES = 'estadisticas:usuarios:roles';
+  private readonly CACHE_KEY_REGISTRY = 'usuarios:cache:registry';
+  private notification: ServiceBusSender;
 
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-
+    private readonly client: ServiceBusClient,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {
-    const credential = new DefaultAzureCredential();
-    let connectionString = envs.servicebusconnectionstring;
-    this.client = new ServiceBusClient(connectionString);
+    try {
+      this.notification = this.client.createSender('mail.envio.individual');
+      this.logger.log('ServiceBus sender inicializado correctamente');
+    } catch (error) {
+      this.logger.error(`Error al inicializar ServiceBus sender: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  private async invalidateUserCaches() {
+    // Invalidar todos los cachés de estadísticas
+    await Promise.all([
+      this.cacheManager.del(this.CACHE_KEY_STATISTICS),
+      this.cacheManager.del(this.CACHE_KEY_STATISTICS_ROLES),
+    ]);
+
+    // Obtener registro de claves de cache de usuarios
+    const registry = await this.cacheManager.get<string[]>(this.CACHE_KEY_REGISTRY) || [];
+
+    // Invalidar todas las claves registradas en paralelo
+    if (registry.length > 0) {
+      await Promise.all(registry.map(key => this.cacheManager.del(key)));
+    }
+
+    // Limpiar el registro
+    await this.cacheManager.del(this.CACHE_KEY_REGISTRY);
   }
 
   async validateGoogleUser(googleUserDto: GoogleUserDto): Promise<AuthResponseDto> {
@@ -42,6 +69,21 @@ export class AuthService {
 
       if (user) {
         this.logger.log(`Usuario encontrado en BD: ${user.email}, google_id: ${user.google_id}`);
+
+        // Verificar si el usuario está suspendido o inactivo
+        if (user.estado.nombre === 'suspendido') {
+          this.logger.warn(`Intento de login de usuario suspendido: ${user.email}`);
+          throw new BadRequestException(
+            'Tu cuenta ha sido suspendida. Por favor, contacta al administrador para más información.'
+          );
+        }
+
+        if (user.estado.nombre === 'inactivo') {
+          this.logger.warn(`Intento de login de usuario inactivo: ${user.email}`);
+          throw new BadRequestException(
+            'Tu cuenta está inactiva. Por favor, contacta al administrador para reactivarla.'
+          );
+        }
 
         if (!user.google_id) {
           // Usuario existe pero no tiene Google vinculado, lo vinculamos
@@ -101,8 +143,17 @@ export class AuthService {
           },
         });
 
-        // Enviar notificación de nuevo usuario al bus de mensajes
-        await this.sendNotificacionNuevoUsuario(user.email, `${user.nombre} ${user.apellido}`, user.id);
+        // Invalidar todos los cachés relacionados con usuarios
+        await this.invalidateUserCaches();
+
+        const mensaje: NotificacionesDto = {
+          email: user.email,
+          name: `${user.nombre} ${user.apellido}`,
+          template: TemplateNotificacionesEnum.NUEVO_USUARIO,
+          resumen: `Bienvenid@ ${user.nombre}, tu cuenta ha sido creada exitosamente.`,
+          guardar: true,
+        };
+        await this.sendNotificacionToServiceBus(mensaje);
       }
 
       // Construimos el payload del JWT
@@ -139,29 +190,38 @@ export class AuthService {
     }
   }
 
-  private async sendNotificacionNuevoUsuario(email: string, name: string, id: string) {
+  async sendNotificacionToServiceBus(notificacionDto: NotificacionesDto) {
     try {
-      const queueName = 'mail.envio.individual';
-      const sender = this.client.createSender(queueName);
+      if (!this.notification) {
+        this.logger.error('ServiceBus sender no está inicializado');
+        throw new Error('ServiceBus sender no disponible');
+      }
 
-      const notificacion: NotificacionesDto = {
-        email,
-        name,
-        template: TemplateNotificacionesEnum.NUEVO_USUARIO,
-        resumen: `Bienvenid@ ${name}, tu cuenta ha sido creada exitosamente.`,
-        guardar: true,
+      const Message: ServiceBusMessage = {
+        body: notificacionDto,
+        contentType: 'application/json',
       };
 
-      const message = {
-        body: notificacion,
-      };
+      this.logger.log(`Enviando notificación a Service Bus para: ${notificacionDto.email}`);
+      this.logger.debug(`Contenido del mensaje: ${JSON.stringify(notificacionDto)}`);
 
-      await sender.sendMessages(message);
-      await sender.close();
+      await this.notification.sendMessages(Message);
 
-      this.logger.log(`Notificación enviada para nuevo usuario: ${email}`);
+      this.logger.log(`Notificación enviada exitosamente a: ${notificacionDto.email}`);
     } catch (error) {
-      this.logger.error(`Error al enviar notificación: ${error.message}`, error.stack);
+      this.logger.error(`Error al enviar notificación a Service Bus: ${error.message}`, error.stack);
+      this.logger.warn(`La creación del usuario continuó a pesar del error en notificaciones`);
+    }
+  }
+
+  async onModuleDestroy() {
+    try {
+      if (this.notification) {
+        await this.notification.close();
+        this.logger.log('ServiceBus sender cerrado correctamente');
+      }
+    } catch (error) {
+      this.logger.error(`Error al cerrar ServiceBus sender: ${error.message}`, error.stack);
     }
   }
 }
