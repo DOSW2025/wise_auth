@@ -1,7 +1,7 @@
 import { Controller, Get, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { GestionUsuariosService } from './gestion-usuarios.service';
-import { ChangeRoleDto, ChangeStatusDto, UpdatePersonalInfoDto, FilterUsersDto } from './dto';
+import { ChangeRoleDto, ChangeStatusDto, UpdatePersonalInfoDto, FilterUsersDto, UserGrowthDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -291,4 +291,172 @@ export class GestionUsuariosController {
   deleteMyAccount(@GetUser('id') userId: string) {
     return this.gestionUsuariosService.deleteUser(userId);
   }
+
+  @Get('estadisticas/usuarios')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Obtener estadísticas de usuarios',
+    description: 'Obtiene un informe completo con el conteo y porcentaje de usuarios activos, suspendidos e inactivos. Solo accesible por administradores.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Estadísticas obtenidas exitosamente',
+    schema: {
+      example: {
+        resumen: {
+          total: 100,
+          activos: {
+            conteo: 75,
+            porcentaje: 75.00
+          },
+          suspendidos: {
+            conteo: 15,
+            porcentaje: 15.00
+          },
+          inactivos: {
+            conteo: 10,
+            porcentaje: 10.00
+          }
+        },
+        usuarios: {
+          activos: [
+            {
+              id: '9b1deb3d-3b7d-4bad-9bdd-2b0d70cf0d28',
+              nombre: 'Juan',
+              apellido: 'Pérez',
+              email: 'juan@example.com'
+            }
+          ],
+          suspendidos: [
+            {
+              id: '8a2cdb2c-2a6c-3aac-8acc-1a0c60bc0c17',
+              nombre: 'María',
+              apellido: 'García',
+              email: 'maria@example.com'
+            }
+          ],
+          inactivos: [
+            {
+              id: '7b3dea1b-1b5b-2bba-7bbb-0b1b50ab0b06',
+              nombre: 'Carlos',
+              apellido: 'López',
+              email: 'carlos@example.com'
+            }
+          ]
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado - Token JWT inválido o expirado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - No tienes permisos de administrador',
+  })
+  stadisticUsers() {
+    return this.gestionUsuariosService.stadisticUsers();
+  }
+
+  @Get('estadisticas/roles')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Obtener estadísticas de usuarios por rol',
+    description: 'Obtiene el total de usuarios y cuántos usuarios tienen cada rol (estudiante, tutor, admin). Solo accesible por administradores.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Estadísticas por rol obtenidas exitosamente',
+    schema: {
+      example: {
+        totalUsuarios: 100,
+        roles: [
+          {
+            rolId: 1,
+            rol: 'estudiante',
+            conteo: 75,
+            porcentaje: 75.00
+          },
+          {
+            rolId: 2,
+            rol: 'tutor',
+            conteo: 20,
+            porcentaje: 20.00
+          },
+          {
+            rolId: 3,
+            rol: 'admin',
+            conteo: 5,
+            porcentaje: 5.00
+          }
+        ]
+      }
+    }
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado - Token JWT inválido o expirado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - No tienes permisos de administrador',
+  })
+  getUsersByRoleStatistics() {
+    return this.gestionUsuariosService.getUsersByRoleStatistics();
+  }
+
+  @Get('estadisticas/crecimiento')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Obtener estadísticas de crecimiento de usuarios por semana',
+    description: 'Obtiene el crecimiento de usuarios registrados por semana. Por defecto muestra las últimas 12 semanas. El valor máximo es 52 semanas (1 año).',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Estadísticas de crecimiento obtenidas exitosamente',
+    schema: {
+      example: {
+        periodo: {
+          inicio: '2024-09-15T00:00:00.000Z',
+          fin: '2024-12-07T00:00:00.000Z',
+          semanas: 12
+        },
+        totalUsuariosNuevos: 150,
+        data: [
+          {
+            semana: '2024-W38',
+            conteo: 10,
+            fecha: '15 sep'
+          },
+          {
+            semana: '2024-W39',
+            conteo: 15,
+            fecha: '22 sep'
+          },
+          {
+            semana: '2024-W40',
+            conteo: 12,
+            fecha: '29 sep'
+          }
+        ]
+      }
+    }
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos - El número de semanas debe estar entre 1 y 52',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado - Token JWT inválido o expirado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - No tienes permisos de administrador',
+  })
+  getUserGrowthStatistics(@Query() userGrowthDto: UserGrowthDto) {
+    return this.gestionUsuariosService.getUserGrowthByWeek(userGrowthDto.weeks);
+  }
+
 }

@@ -13,6 +13,9 @@ interface EnvVars {
   GOOGLE_CALLBACK_URL: string;
   GATEWAY_URL: string;
   SERVICEBUS_CONNECTION_STRING: string;
+  REDIS_HOST?: string;
+  REDIS_PORT?: number;
+  REDIS_PASSWORD?: string;
 }
 const envsSchema = joi
   .object({
@@ -26,6 +29,9 @@ const envsSchema = joi
     GOOGLE_CALLBACK_URL: joi.string().required(),
     GATEWAY_URL: joi.string().required(),
     SERVICEBUS_CONNECTION_STRING: joi.string().required(),
+    REDIS_HOST: joi.string().optional(),
+    REDIS_PORT: joi.number().optional(),
+    REDIS_PASSWORD: joi.string().optional(),
   })
   .unknown(true);
 
@@ -46,4 +52,7 @@ export const envs = {
   googleCallbackUrl: envVars.GOOGLE_CALLBACK_URL,
   gatewayUrl: envVars.GATEWAY_URL.startsWith('http') ? envVars.GATEWAY_URL : `https://${envVars.GATEWAY_URL}`,
   servicebusconnectionstring: envVars.SERVICEBUS_CONNECTION_STRING,
+  redisHost: envVars.REDIS_HOST,
+  redisPort: envVars.REDIS_PORT,
+  redisPassword: envVars.REDIS_PASSWORD,
 };
