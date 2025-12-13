@@ -7,7 +7,6 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
 import { GetUser } from '../auth/decorators/get-user.decorator';
-import { Public } from 'src/auth';
 
 
 @ApiTags('gestion-usuarios')
@@ -18,10 +17,9 @@ export class GestionUsuariosController {
   constructor(private readonly gestionUsuariosService: GestionUsuariosService) {}
 
   @Get()
-  @Roles(Role.ADMIN)
   @ApiOperation({
     summary: 'Listar todos los usuarios con filtros',
-    description: 'Obtiene una lista paginada de usuarios con opciones de filtrado por búsqueda, rol y estado. Solo accesible por administradores.',
+    description: 'Obtiene una lista paginada de usuarios con opciones de filtrado por búsqueda, rol y estado.',
   })
   @ApiQuery({
     name: 'page',
@@ -87,10 +85,6 @@ export class GestionUsuariosController {
   @ApiResponse({
     status: 401,
     description: 'No autorizado - Token JWT inválido o expirado',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Prohibido - No tienes permisos de administrador',
   })
   findAll(@Query() filterUsersDto: FilterUsersDto) {
     return this.gestionUsuariosService.findAllWithFilters(filterUsersDto);
