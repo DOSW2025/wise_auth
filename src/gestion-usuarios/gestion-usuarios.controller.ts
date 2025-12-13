@@ -14,7 +14,7 @@ import { GetUser } from '../auth/decorators/get-user.decorator';
 @Controller('gestion-usuarios')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class GestionUsuariosController {
-  constructor(private readonly gestionUsuariosService: GestionUsuariosService) {}
+  constructor(private readonly gestionUsuariosService: GestionUsuariosService) { }
 
   @Get()
   @ApiOperation({
@@ -88,6 +88,33 @@ export class GestionUsuariosController {
   })
   findAll(@Query() filterUsersDto: FilterUsersDto) {
     return this.gestionUsuariosService.findAllWithFilters(filterUsersDto);
+  }
+
+  @Get('me')
+  @ApiOperation({
+    summary: 'Obtener mi perfil',
+    description: 'Devuelve la información del usuario autenticado (incluye teléfono y biografía).',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Perfil obtenido exitosamente',
+    schema: {
+      example: {
+        id: '9b1deb3d-3b7d-4bad-9bdd-2b0d70cf0d28',
+        email: 'usuario@example.com',
+        nombre: 'Juan',
+        apellido: 'Pérez',
+        telefono: '+57 300 123 4567',
+        biografia: 'Estudiante de ingeniería de sistemas',
+        rol: { id: 1, nombre: 'estudiante' },
+        estado: { id: 1, nombre: 'activo' },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado - Token JWT inválido o expirado' })
+  @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
+  getMyProfile(@GetUser('id') userId: string) {
+    return this.gestionUsuariosService.getMyProfile(userId);
   }
 
   @Patch(':id/rol')
