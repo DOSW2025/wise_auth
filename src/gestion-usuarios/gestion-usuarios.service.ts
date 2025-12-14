@@ -15,7 +15,7 @@ export class GestionUsuariosService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
-  ) {}
+  ) { }
 
   private async invalidateUserCaches() {
     // Invalidar todos los cachés de estadísticas en paralelo
@@ -88,24 +88,24 @@ export class GestionUsuariosService {
 
     const resultado = usuarios.length === 0
       ? {
-          data: [],
-          message: 'Sin resultado encontrado',
-          meta: {
-            total: 0,
-            page,
-            limit,
-            totalPages: 0,
-          },
-        }
+        data: [],
+        message: 'Sin resultado encontrado',
+        meta: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        },
+      }
       : {
-          data: usuarios,
-          meta: {
-            total,
-            page,
-            limit,
-            totalPages: Math.ceil(total / limit),
-          },
-        };
+        data: usuarios,
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
 
     // Guardar en cache por 2 minutos (120000 ms) - mas corto que estadisticas
     await this.cacheManager.set(cacheKey, resultado, 120000);
@@ -171,6 +171,22 @@ export class GestionUsuariosService {
     return usuario;
   }
 
+  async getMyProfile(userId: string) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: userId },
+      include: {
+        rol: { select: { id: true, nombre: true } },
+        estado: { select: { id: true, nombre: true } },
+      },
+    });
+
+    if (!usuario) {
+      throw new NotFoundException(`Usuario con id ${userId} no encontrado`);
+    }
+
+    return usuario;
+  }
+
   async updatePersonalInfo(userId: string, updatePersonalInfoDto: UpdatePersonalInfoDto) {
     // Verificar que el usuario existe
     const userExists = await this.prisma.usuario.findUnique({
@@ -217,7 +233,7 @@ export class GestionUsuariosService {
     // Invalidar caches relacionados con usuarios
     await this.invalidateUserCaches();
 
-    
+
 
     return { message: 'Usuario eliminado exitosamente', userId };
   }
