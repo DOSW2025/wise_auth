@@ -249,7 +249,6 @@ export class GestionUsuariosController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
   @ApiOperation({
     summary: 'Eliminar un usuario (admin)',
     description: 'Permite a un administrador eliminar cualquier usuario del sistema. Esta operación es irreversible.',
